@@ -1,0 +1,198 @@
+import { useState } from 'preact/hooks';
+import type { LastPerformance } from '../data/repository';
+import { formatDateLabel } from '../lib/date';
+import { emptyDraftSet, formatSetShort } from '../lib/draft';
+import { formatNumber, sanitizeDecimalInput, sanitizeIntInput } from '../lib/number';
+import type { DraftExercise, DraftSet, Exercise } from '../types/models';
+import { showToast } from './Toast';
+
+interface Props {
+  exercise: Exercise | undefined;
+  value: DraftExercise;
+  index: number;
+  total: number;
+  /** 上次做這個動作的紀錄，用來顯示提示與輸入框的預設值 */
+  last: LastPerformance | null;
+  onChange: (next: DraftExercise) => void;
+  onRemove: () => void;
+  onMove: (delta: -1 | 1) => void;
+  /** 勾選完成一組時呼叫（用來啟動休息計時器） */
+  onSetCompleted: () => void;
+}
+
+/** 訓練畫面中的一個動作：組數表格、上次紀錄、加組與刪除 */
+export function ExerciseCard(props: Props) {
+  const { exercise, value, last } = props;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openSet, setOpenSet] = useState<number | null>(null);
+  const isBodyweight = exercise?.isBodyweight ?? false;
+
+  const updateSet = (i: number, patch: Partial<DraftSet>) =>
+    props.onChange({ ...value, sets: value.sets.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
+
+  /** 輸入框的灰色預設值：優先用上次同一組，其次用本次上一組 */
+  const placeholderOf = (i: number): { weight: string; reps: string } => {
+    const lastSet = last?.sets[i];
+    if (lastSet) return { weight: formatNumber(lastSet.weight), reps: String(lastSet.reps) };
+    const prev = value.sets[i - 1];
+    return { weight: prev?.weight ?? '', reps: prev?.reps ?? '' };
+  };
+
+  /** 勾選完成：空白欄位自動填入預設值，並開始休息計時 */
+  const toggleDone = (i: number) => {
+    const set = value.sets[i];
+    if (!set) return;
+    if (set.completed) return updateSet(i, { completed: false });
+
+    const ph = placeholderOf(i);
+    const weight = set.weight || ph.weight || (isBodyweight ? '0' : '');
+    const reps = set.reps || ph.reps;
+    if (!reps) return showToast('先填這組的次數');
+    updateSet(i, { weight, reps, completed: true });
+    props.onSetCompleted();
+  };
+
+  const addSet = () => {
+    const prev = value.sets[value.sets.length - 1];
+    props.onChange({ ...value, sets: [...value.sets, emptyDraftSet(prev)] });
+  };
+
+  const removeSet = (i: number) => {
+    props.onChange({ ...value, sets: value.sets.filter((_, j) => j !== i) });
+    setOpenSet(null);
+  };
+
+  // 正式組的編號（熱身組不佔編號）
+  let workingNo = 0;
+  const lastWorking = last?.sets.filter((s) => !s.isWarmup) ?? [];
+
+  return (
+    <article class="ex-card">
+      <header class="ex-head">
+        {exercise && <span class={`part-dot part-${exercise.bodyPart}`} aria-hidden="true" />}
+        <h2 class="ex-name">{exercise?.name ?? '已刪除的動作'}</h2>
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label="動作選項"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          ⋯
+        </button>
+      </header>
+
+      {menuOpen && (
+        <div class="ex-menu">
+          <button type="button" class="btn btn-secondary btn-sm" disabled={props.index === 0} onClick={() => props.onMove(-1)}>
+            上移
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            disabled={props.index === props.total - 1}
+            onClick={() => props.onMove(1)}
+          >
+            下移
+          </button>
+          <button type="button" class="btn btn-danger-text btn-sm" onClick={props.onRemove}>
+            刪除動作
+          </button>
+        </div>
+      )}
+
+      {last && lastWorking.length > 0 && (
+        <p class="ex-last">
+          上次 {formatDateLabel(last.date)}：
+          <span class="num">{lastWorking.map((s) => formatSetShort(s, isBodyweight)).join('、')}</span>
+        </p>
+      )}
+
+      <div class="set-grid set-grid-head" aria-hidden="true">
+        <span>組</span>
+        <span>{isBodyweight ? '+公斤' : '公斤'}</span>
+        <span>次數</span>
+        <span>RPE</span>
+        <span>完成</span>
+      </div>
+
+      {value.sets.map((set, i) => {
+        if (!set.isWarmup) workingNo++;
+        const ph = placeholderOf(i);
+        return (
+          <div key={i}>
+            <div class={set.completed ? 'set-grid set-row is-done' : 'set-grid set-row'}>
+              <button
+                type="button"
+                class={set.isWarmup ? 'set-no is-warmup' : 'set-no'}
+                aria-label={`第 ${i + 1} 組選項`}
+                aria-expanded={openSet === i}
+                onClick={() => setOpenSet(openSet === i ? null : i)}
+              >
+                {set.isWarmup ? '熱' : workingNo}
+              </button>
+              <input
+                class="set-input num"
+                inputMode="decimal"
+                aria-label="重量（公斤）"
+                placeholder={ph.weight || (isBodyweight ? '0' : '')}
+                value={set.weight}
+                onInput={(e) => updateSet(i, { weight: sanitizeDecimalInput(e.currentTarget.value) })}
+              />
+              <input
+                class="set-input num"
+                inputMode="numeric"
+                aria-label="次數"
+                placeholder={ph.reps}
+                value={set.reps}
+                onInput={(e) => updateSet(i, { reps: sanitizeIntInput(e.currentTarget.value) })}
+              />
+              <input
+                class="set-input set-input-rpe num"
+                inputMode="decimal"
+                aria-label="RPE（選填）"
+                placeholder="–"
+                value={set.rpe}
+                onInput={(e) => updateSet(i, { rpe: sanitizeDecimalInput(e.currentTarget.value).slice(0, 4) })}
+              />
+              <button
+                type="button"
+                class="set-check"
+                role="checkbox"
+                aria-checked={set.completed}
+                aria-label="完成這組"
+                onClick={() => toggleDone(i)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </button>
+            </div>
+
+            {openSet === i && (
+              <div class="set-menu">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    updateSet(i, { isWarmup: !set.isWarmup });
+                    setOpenSet(null);
+                  }}
+                >
+                  {set.isWarmup ? '改為正式組' : '標記為熱身組'}
+                </button>
+                <button type="button" class="btn btn-danger-text btn-sm" onClick={() => removeSet(i)}>
+                  刪除這組
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <button type="button" class="btn btn-ghost btn-block" onClick={addSet}>
+        ＋ 加一組
+      </button>
+    </article>
+  );
+}

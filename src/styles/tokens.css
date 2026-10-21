@@ -1,0 +1,76 @@
+/*
+ * 設計 token
+ * 配色靈感來自健身房：止滑粉的冷灰白底、深灰藍字，
+ * 主色取自比賽槓片的藍（20 kg），PR 強調色取自紅（25 kg）。
+ * 部位顏色也對應槓片色：胸＝紅、背＝藍、腿＝黃、肩＝綠、手臂＝白、核心＝黑。
+ */
+:root {
+  color-scheme: light;
+
+  --bg: #eef1f0;
+  --surface: #ffffff;
+  --surface-2: #e3e8e7;
+  --ink: #172126;
+  --muted: #5b676d;
+  --line: #d3d9d8;
+  --accent: #1e5aa8;
+  --accent-ink: #ffffff;
+  --pr: #c8202f;
+  --warn-bg: #fdecea;
+  --warn-ink: #8a1720;
+
+  --part-chest: #c8202f;
+  --part-back: #1e5aa8;
+  --part-legs: #d9a400;
+  --part-shoulders: #2e8b57;
+  --part-arms: #ffffff;
+  --part-core: #2b3338;
+
+  /* 比賽槓片顏色（兩種模式共用） */
+  --plate-25: #c8202f;
+  --plate-20: #1e5aa8;
+  --plate-15: #e3b505;
+  --plate-10: #2e8b57;
+  --plate-5: #f4f6f6;
+  --plate-2_5: #22292d;
+  --plate-1_25: #a9b2b7;
+  --plate-0_5: #c9d0d3;
+
+  /* 字體：中文用系統字，數字用 Barlow Condensed（已打包進 App，離線也能顯示） */
+  --font-body: -apple-system, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+  --font-num: 'Barlow Condensed', 'Arial Narrow', var(--font-body);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+
+  /* 觸控目標：流汗時也要點得到 */
+  --tap: 56px;
+  --nav-height: 68px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --bg: #12181b;
+    --surface: #1b2327;
+    --surface-2: #243035;
+    --ink: #e8eeee;
+    --muted: #94a1a6;
+    --line: #2c373c;
+    --accent: #5b9bea;
+    --accent-ink: #0d1a2b;
+    --pr: #ff5a64;
+    --warn-bg: #3a1a1d;
+    --warn-ink: #ffb3b8;
+
+    --part-chest: #ff5a64;
+    --part-back: #5b9bea;
+    --part-legs: #f2c230;
+    --part-shoulders: #4cc283;
+    --part-arms: #e8eeee;
+    --part-core: #0b0f11;
+  }
+}

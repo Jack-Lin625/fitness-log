@@ -1,0 +1,172 @@
+import { confirmDialog } from '../components/Dialog';
+import { PageHeader } from '../components/PageHeader';
+import { ClearDataSection, DataManagement } from '../components/DataManagement';
+import { showToast } from '../components/Toast';
+import { useRepository } from '../hooks/useRepository';
+import { errorMessage } from '../lib/errors';
+import { formatDuration } from '../lib/number';
+import { BODY_PARTS, BODY_PART_LABELS, type Exercise, type Settings } from '../types/models';
+
+const REST_STEP = 15;
+const REST_MIN = 15;
+const REST_MAX = 600;
+
+export function SettingsPage() {
+  const repo = useRepository();
+  const status = repo.loadStatus;
+  const settings = repo.getSettings();
+  const data = repo.exportData();
+  const exercises = repo.getExercises();
+  const sizeKb = (JSON.stringify(data).length / 1024).toFixed(1);
+
+  const update = (patch: Partial<Settings>) =>
+    repo.updateSettings(patch).catch((err) => showToast(errorMessage(err)));
+
+  const changeRest = (delta: number) => {
+    const next = Math.min(REST_MAX, Math.max(REST_MIN, settings.defaultRestSeconds + delta));
+    void update({ defaultRestSeconds: next });
+  };
+
+  const removeCustom = async (exercise: Exercise) => {
+    const ok = await confirmDialog({
+      title: `刪除「${exercise.name}」？`,
+      body: '以前的紀錄仍會保留這個動作，只是之後不會出現在動作清單中。',
+      confirmText: '刪除',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await repo.archiveCustomExercise(exercise.id);
+      showToast(`已刪除「${exercise.name}」`);
+    } catch (err) {
+      showToast(errorMessage(err));
+    }
+  };
+
+  return (
+    <>
+      <PageHeader title="設定" />
+
+      {!status.ok && (
+        <div class="alert" role="alert">
+          <strong>讀取資料失敗：</strong>
+          {status.message}
+          {status.backupKey ? '。原始資料已另存備份，目前以空白資料啟動。' : '。目前以空白資料啟動。'}
+        </div>
+      )}
+
+      <section class="section">
+        <h2 class="section-title">組間休息</h2>
+        <div class="settings-card">
+          <div class="stepper-row">
+            <span>預設休息時間</span>
+            <div class="stepper">
+              <button
+                type="button"
+                class="stepper-btn"
+                aria-label="減少 15 秒"
+                disabled={settings.defaultRestSeconds <= REST_MIN}
+                onClick={() => changeRest(-REST_STEP)}
+              >
+                −
+              </button>
+              <span class="num stepper-value">{formatDuration(settings.defaultRestSeconds)}</span>
+              <button
+                type="button"
+                class="stepper-btn"
+                aria-label="增加 15 秒"
+                disabled={settings.defaultRestSeconds >= REST_MAX}
+                onClick={() => changeRest(REST_STEP)}
+              >
+                ＋
+              </button>
+            </div>
+          </div>
+          <label class="switch-row">
+            <span>結束時播放提示音</span>
+            <input
+              type="checkbox"
+              role="switch"
+              class="switch"
+              checked={settings.timerSound}
+              onChange={(e) => update({ timerSound: e.currentTarget.checked })}
+            />
+          </label>
+          <label class="switch-row">
+            <span>
+              結束時震動
+              <small class="muted">iPhone 的瀏覽器不支援震動</small>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              class="switch"
+              checked={settings.timerVibrate}
+              onChange={(e) => update({ timerVibrate: e.currentTarget.checked })}
+            />
+          </label>
+        </div>
+      </section>
+
+      <DataManagement />
+
+      <section class="section">
+        <details class="exercise-list">
+          <summary>
+            動作清單 <span class="num muted">{exercises.length}</span>
+          </summary>
+          {BODY_PARTS.map((part) => {
+            const list = exercises.filter((e) => e.bodyPart === part);
+            const builtIn = list.filter((e) => !e.isCustom);
+            const custom = list.filter((e) => e.isCustom);
+            return (
+              <div key={part} class="part-group">
+                <h3>
+                  <span class={`part-dot part-${part}`} aria-hidden="true" />
+                  {BODY_PART_LABELS[part]}
+                </h3>
+                <p>{builtIn.map((e) => e.name).join('、')}</p>
+                {custom.map((e) => (
+                  <div key={e.id} class="custom-row">
+                    <span>
+                      {e.name} <span class="tag">自訂</span>
+                    </span>
+                    <button type="button" class="btn btn-danger-text btn-sm" onClick={() => removeCustom(e)}>
+                      刪除
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </details>
+      </section>
+
+      <section class="section">
+        <h2 class="section-title">資料狀態</h2>
+        <dl class="kv">
+          <dt>資料格式版本</dt>
+          <dd class="num">v{data.version}</dd>
+          <dt>訓練紀錄</dt>
+          <dd>
+            <span class="num">{data.sessions.length}</span> 筆
+          </dd>
+          <dt>體態紀錄</dt>
+          <dd>
+            <span class="num">{data.bodyMetrics.length}</span> 筆
+          </dd>
+          <dt>自訂動作</dt>
+          <dd>
+            <span class="num">{data.customExercises.filter((e) => !e.archived).length}</span> 個
+          </dd>
+          <dt>使用空間</dt>
+          <dd>
+            <span class="num">{sizeKb}</span> KB
+          </dd>
+        </dl>
+      </section>
+
+      <ClearDataSection />
+    </>
+  );
+}

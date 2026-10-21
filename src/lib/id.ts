@@ -1,0 +1,7 @@
+/** 產生唯一 id；crypto.randomUUID 只在 HTTPS / localhost 可用，其餘情況退回簡易版本 */
+export function createId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}

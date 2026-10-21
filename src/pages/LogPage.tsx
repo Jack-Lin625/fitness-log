@@ -1,0 +1,101 @@
+import { resumeDraft, startFromSession, startNewWorkout } from '../actions/workout';
+import { BigStat } from '../components/BigStat';
+import { EmptyState } from '../components/EmptyState';
+import { PageHeader } from '../components/PageHeader';
+import { useRepository } from '../hooks/useRepository';
+import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date';
+import { formatVolume, sessionVolume, volumeBetween } from '../lib/volume';
+import { BODY_PARTS, type BodyPart } from '../types/models';
+
+export function LogPage() {
+  const repo = useRepository();
+  const sessions = repo.getSessions();
+  const draft = repo.getDraft();
+  const last = sessions[0];
+  // 本週與上週（週一起算）
+  const weekStart = startOfWeek();
+  const nextWeekStart = addDays(weekStart, 7);
+  const lastWeekStart = addDays(weekStart, -7);
+  const thisWeekCount = sessions.filter((s) => s.date >= weekStart && s.date < nextWeekStart).length;
+  const thisWeekVolume = volumeBetween(sessions, weekStart, nextWeekStart);
+  const lastWeekVolume = volumeBetween(sessions, lastWeekStart, weekStart);
+
+  /** 一次訓練的動作名稱與練到的部位 */
+  const describe = (exerciseIds: string[]) => {
+    const exercises = exerciseIds.map((id) => repo.getExercise(id));
+    const names = exercises.map((e) => e?.name ?? '已刪除的動作');
+    const parts = new Set(exercises.map((e) => e?.bodyPart).filter((p): p is BodyPart => !!p));
+    return { names, parts: BODY_PARTS.filter((p) => parts.has(p)) };
+  };
+
+  return (
+    <>
+      <PageHeader title="訓練紀錄" subtitle={formatDateLabel(todayString())} />
+
+      <div class="stat-row">
+        <BigStat value={thisWeekCount} unit="次" label="本週訓練" />
+        <BigStat
+          value={formatVolume(thisWeekVolume)}
+          unit="kg"
+          label="本週訓練容量"
+          {...(lastWeekVolume > 0 ? { hint: `上週 ${formatVolume(lastWeekVolume)} kg` } : {})}
+        />
+      </div>
+
+      {draft ? (
+        <button type="button" class="resume-card" onClick={resumeDraft}>
+          <span class="resume-title">{draft.editingSessionId ? '繼續修改紀錄' : '繼續未完成的訓練'}</span>
+          <span class="resume-sub">
+            {formatDateLabel(draft.date)}，{draft.exercises.length} 個動作
+          </span>
+        </button>
+      ) : (
+        <div class="action-stack">
+          <button type="button" class="btn btn-primary btn-block" onClick={startNewWorkout}>
+            開始今天的訓練
+          </button>
+          {last && (
+            <button type="button" class="btn btn-secondary btn-block btn-two-line" onClick={() => startFromSession(last)}>
+              <span>複製上次菜單</span>
+              <small>
+                {formatDateLabel(last.date)}：{describe(last.exercises.map((e) => e.exerciseId)).names.join('、')}
+              </small>
+            </button>
+          )}
+        </div>
+      )}
+
+      {sessions.length === 0 ? (
+        <EmptyState title="還沒有訓練紀錄" body="完成第一次訓練後，紀錄會依日期排列在這裡。" />
+      ) : (
+        <section class="section">
+          <h2 class="section-title">歷史紀錄（{sessions.length} 次）</h2>
+          <ul class="session-list">
+            {sessions.map((s) => {
+              const { names, parts } = describe(s.exercises.map((e) => e.exerciseId));
+              const sets = s.exercises.reduce((n, e) => n + e.sets.length, 0);
+              return (
+                <li key={s.id}>
+                  <a href={`#/log/view/${s.id}`} class="session-row">
+                    <span class="session-date">{formatDateLabel(s.date)}</span>
+                    <span class="session-meta">
+                      <span class="num">{formatVolume(sessionVolume(s))}</span> kg
+                    </span>
+                    <span class="session-names">
+                      {sets} 組：{names.join('、')}
+                    </span>
+                    <span class="session-parts" aria-hidden="true">
+                      {parts.map((p) => (
+                        <span key={p} class={`part-dot part-${p}`} />
+                      ))}
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}

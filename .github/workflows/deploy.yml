@@ -1,0 +1,54 @@
+# 推送到 main 分支時，自動建置並部署到 GitHub Pages
+# 第一次使用前：到 repo 的 Settings → Pages → Source 選「GitHub Actions」
+name: 部署到 GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # 也可以在 Actions 頁面手動執行
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一時間只跑一次部署，新的推送會取消還在排隊的舊部署
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得程式碼
+        uses: actions/checkout@v5
+
+      - name: 安裝 Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安裝套件
+        run: npm ci
+
+      - name: 型別檢查並建置
+        run: npm run build
+
+      - name: 上傳網站檔案
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署
+        id: deployment
+        uses: actions/deploy-pages@v5
