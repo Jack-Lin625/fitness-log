@@ -1,5 +1,7 @@
+import { DEFAULT_MUSCLES } from './catalog';
 import {
   BODY_PARTS,
+  type BodyPart,
   CURRENT_DATA_VERSION,
   type AppData,
   type BodyMetric,
@@ -38,6 +40,8 @@ type Migration = (data: Record<string, unknown>) => Record<string, unknown>;
 const MIGRATIONS: Record<number, Migration> = {
   // v1 → v2：新增訓練草稿欄位
   1: (d) => ({ ...d, version: 2, activeDraft: null }),
+  // v2 → v3：動作加上器材與肌群（自訂動作依部位給預設值，normalize 會補齊）
+  2: (d) => ({ ...d, version: 3 }),
 };
 
 export class MigrationError extends Error {
@@ -98,6 +102,19 @@ function isValidExercise(v: unknown): v is Exercise {
   );
 }
 
+/** 舊版自訂動作沒有器材與肌群：補上「其他」與部位預設肌群 */
+function withExerciseDefaults(e: Exercise): Exercise {
+  const part = e.bodyPart as BodyPart;
+  return {
+    ...e,
+    equipment: typeof e.equipment === 'string' ? e.equipment : 'other',
+    primaryMuscles: Array.isArray(e.primaryMuscles) && e.primaryMuscles.length ? e.primaryMuscles : [...DEFAULT_MUSCLES[part]],
+    secondaryMuscles: Array.isArray(e.secondaryMuscles) ? e.secondaryMuscles : [],
+    isBodyweight: e.isBodyweight === true,
+    isCustom: true,
+  };
+}
+
 function isValidBodyMetric(v: unknown): v is BodyMetric {
   return isRecord(v) && isStr(v.id) && typeof v.date === 'string' && DATE_RE.test(v.date);
 }
@@ -113,7 +130,7 @@ function normalize(data: Record<string, unknown>): AppData {
 
   return {
     version: CURRENT_DATA_VERSION,
-    customExercises: arr<unknown>(data.customExercises, []).filter(isValidExercise),
+    customExercises: arr<unknown>(data.customExercises, []).filter(isValidExercise).map(withExerciseDefaults),
     // 舊資料可能缺 createdAt/updatedAt，補上 0 讓排序正常
     sessions: arr<unknown>(data.sessions, []).filter(isValidSession).map((s) => ({
       ...s,

@@ -65,7 +65,7 @@ export function PrWall() {
                       <SetDetail item={r.bestReps} showReps={false} />
                     </div>
                   )}
-                  {r.bestWeight && r.bestWeight.set.weight > 0 && (
+                  {r.bestWeight && r.bestWeight.set.weight > 0 && !ex?.assisted && (
                     <div class="pr-stat">
                       <span class="pr-label">最大負重</span>
                       <span class="pr-value">

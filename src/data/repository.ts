@@ -8,6 +8,7 @@ import type {
   WorkoutSet,
 } from '../types/models';
 import { createId } from '../lib/id';
+import { DEFAULT_MUSCLES } from './catalog';
 import { DEFAULT_EXERCISES } from './defaultExercises';
 import { createEmptyData, migrate } from './migrations';
 import type { StorageAdapter } from './storageAdapter';
@@ -94,8 +95,25 @@ export class Repository {
     return this.getExercises(true).find((e) => e.id === id);
   }
 
-  async addCustomExercise(input: Pick<Exercise, 'name' | 'bodyPart' | 'isBodyweight'>): Promise<Exercise> {
-    const exercise: Exercise = { ...input, id: createId(), isCustom: true };
+  /** 是否為輔助機器動作（重量代表輔助，不計入容量） */
+  isAssisted = (id: string): boolean => this.getExercise(id)?.assisted === true;
+
+  /** 計算 PR 需要的動作特性 */
+  traitsOf = (id: string): { bodyweight: boolean; assisted: boolean } => {
+    const e = this.getExercise(id);
+    return { bodyweight: e?.isBodyweight ?? false, assisted: e?.assisted === true };
+  };
+
+  async addCustomExercise(
+    input: Pick<Exercise, 'name' | 'bodyPart' | 'isBodyweight' | 'equipment'>,
+  ): Promise<Exercise> {
+    const exercise: Exercise = {
+      ...input,
+      id: createId(),
+      isCustom: true,
+      primaryMuscles: [...DEFAULT_MUSCLES[input.bodyPart]],
+      secondaryMuscles: [],
+    };
     await this.commit({ ...this.data, customExercises: [...this.data.customExercises, exercise] });
     return exercise;
   }

@@ -90,7 +90,7 @@ export interface NewRecord {
 export function findNewRecords(
   session: WorkoutSession,
   allSessions: WorkoutSession[],
-  isBodyweight: (exerciseId: string) => boolean,
+  traitsOf: (exerciseId: string) => { bodyweight: boolean; assisted: boolean },
 ): NewRecord[] {
   const ordered = chronological(allSessions.filter((s) => s.id !== session.id));
   const before = ordered.filter(
@@ -102,7 +102,7 @@ export function findNewRecords(
   session.exercises.forEach((ex, exerciseIndex) => {
     const prev = prior.get(ex.exerciseId);
     if (!prev) return;
-    const bodyweight = isBodyweight(ex.exerciseId);
+    const { bodyweight, assisted } = traitsOf(ex.exerciseId);
 
     // 這次各項目的最佳組
     let topWeight = -1, topWeightIdx = -1;
@@ -122,7 +122,8 @@ export function findNewRecords(
     };
 
     const prevWeight = prev.bestWeight?.set.weight ?? 0;
-    if (topWeightIdx >= 0 && topWeight > 0 && topWeight > prevWeight + EPSILON) {
+    // 輔助機器的重量越重越輕鬆，不算重量紀錄
+    if (!assisted && topWeightIdx >= 0 && topWeight > 0 && topWeight > prevWeight + EPSILON) {
       push('weight', topWeightIdx, topWeight, prevWeight);
     }
     if (bodyweight) {

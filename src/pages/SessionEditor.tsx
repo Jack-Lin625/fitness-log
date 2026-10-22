@@ -13,6 +13,9 @@ import { errorMessage } from '../lib/errors';
 import { describeRecords } from '../lib/recordText';
 import { findNewRecords } from '../lib/records';
 import { startRest, stopRest } from '../lib/restTimer';
+import { trainedMuscles } from '../lib/stretchRoute';
+import { warmupPlayPath } from '../components/tools/WarmupSetup';
+import { buildWarmup } from '../data/warmups';
 import type { DraftExercise, WorkoutDraft } from '../types/models';
 
 /** 自動暫存的延遲（毫秒）：停止輸入後才寫入，避免每打一個字就寫一次 */
@@ -118,7 +121,7 @@ function SessionEditor({ initial }: { initial: WorkoutDraft }) {
     stopRest();
 
     // 破紀錄時用簡單的一句話告知（同時附上 RPE，提醒是在什麼強度下做到的）
-    const records = findNewRecords(session, repo.getSessions(), (id) => repo.getExercise(id)?.isBodyweight ?? false);
+    const records = findNewRecords(session, repo.getSessions(), repo.traitsOf);
     const recordText = describeRecords(records, (id) => repo.getExercise(id)?.name ?? '');
     if (recordText) showToast(recordText, 4500);
     else showToast(skippedSets > 0 ? `已儲存，略過 ${skippedSets} 組沒填次數的紀錄` : '已儲存訓練');
@@ -136,6 +139,12 @@ function SessionEditor({ initial }: { initial: WorkoutDraft }) {
   };
 
   const usedIds = draft.exercises.map((e) => e.exerciseId);
+  // 還沒開始做組數時，提供依今天動作排好的動態熱身
+  const warmupMuscles = trainedMuscles(
+    [{ id: '', date: '', createdAt: 0, updatedAt: 0, exercises: draft.exercises.map((e) => ({ exerciseId: e.exerciseId, sets: [] })) }],
+    (id) => repo.getExercise(id),
+  );
+  const warmupCount = warmupMuscles.length > 0 ? buildWarmup(warmupMuscles).length : 0;
   const doneCount = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => s.completed).length, 0);
 
   return (
@@ -170,6 +179,13 @@ function SessionEditor({ initial }: { initial: WorkoutDraft }) {
           }}
         />
       </label>
+
+      {!isEditing && warmupCount > 0 && draft.exercises.every((e) => e.sets.every((x) => !x.completed)) && (
+        <button type="button" class="resume-card warmup-card" onClick={() => navigate(warmupPlayPath(warmupMuscles))}>
+          <span class="resume-title">先熱身 5 分鐘</span>
+          <span class="resume-sub">依今天的動作排好 {warmupCount} 個動態熱身，做完會回到這裡</span>
+        </button>
+      )}
 
       {draft.exercises.length === 0 && (
         <EmptyState title="先加入第一個動作" body="從清單挑選今天要練的動作，也可以新增自己的動作。" />

@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import {
+  EQUIPMENT_GROUPS,
+  EQUIPMENT_LABELS,
+  MUSCLE_LABELS,
+  type EquipmentGroup,
+} from '../data/catalog';
 import { useRepository } from '../hooks/useRepository';
 import { errorMessage } from '../lib/errors';
-import { BODY_PARTS, BODY_PART_LABELS, type BodyPart, type Exercise } from '../types/models';
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart, type Equipment, type Exercise } from '../types/models';
+import { EquipmentIcon } from './EquipmentIcon';
+import { hasGuide } from '../data/exerciseGuides';
 import { showToast } from './Toast';
 
-type Filter = 'recent' | BodyPart;
+type PartFilter = 'recent' | 'all' | BodyPart;
+type GearFilter = 'all' | EquipmentGroup;
 
 interface Props {
   /** 這次訓練已經加入的動作，清單中會標示 */
@@ -13,11 +22,18 @@ interface Props {
   onClose: () => void;
 }
 
-/** 全螢幕的動作選擇器：依部位分類、搜尋、新增自訂動作 */
+/** 動作名稱、器材、肌群都可以搜尋 */
+function matches(e: Exercise, q: string): boolean {
+  if (e.name.includes(q) || EQUIPMENT_LABELS[e.equipment].includes(q)) return true;
+  return [...e.primaryMuscles, ...e.secondaryMuscles].some((m) => MUSCLE_LABELS[m].includes(q));
+}
+
+/** 全螢幕的動作選擇器：依部位與器材分類、搜尋、新增自訂動作 */
 export function ExercisePicker({ usedIds, onPick, onClose }: Props) {
   const repo = useRepository();
   const recentIds = repo.getRecentExerciseIds(12);
-  const [filter, setFilter] = useState<Filter>(recentIds.length > 0 ? 'recent' : 'chest');
+  const [part, setPart] = useState<PartFilter>(recentIds.length > 0 ? 'recent' : 'chest');
+  const [gear, setGear] = useState<GearFilter>('all');
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -34,22 +50,28 @@ export function ExercisePicker({ usedIds, onPick, onClose }: Props) {
   const exercises = useMemo((): Exercise[] => {
     const all = repo.getExercises();
     const q = query.trim();
-    if (q) return all.filter((e) => e.name.includes(q));
-    if (filter === 'recent') {
-      return recentIds
-        .map((id) => repo.getExercise(id))
-        .filter((e): e is Exercise => e !== undefined && !e.archived);
-    }
-    return all.filter((e) => e.bodyPart === filter);
-  }, [repo, filter, query, recentIds.join()]);
+    let list: Exercise[];
+    if (q) list = all.filter((e) => matches(e, q));
+    else if (part === 'recent')
+      list = recentIds.map((id) => repo.getExercise(id)).filter((e): e is Exercise => !!e && !e.archived);
+    else if (part === 'all') list = all;
+    else list = all.filter((e) => e.bodyPart === part);
 
-  const chips: { value: Filter; label: string }[] = [
+    if (gear !== 'all') {
+      const items = EQUIPMENT_GROUPS.find((g) => g.id === gear)?.items ?? [];
+      list = list.filter((e) => items.includes(e.equipment));
+    }
+    return list;
+  }, [repo, part, gear, query, recentIds.join()]);
+
+  const partChips: { value: PartFilter; label: string }[] = [
     ...(recentIds.length > 0 ? [{ value: 'recent' as const, label: '最近' }] : []),
     ...BODY_PARTS.map((p) => ({ value: p, label: BODY_PART_LABELS[p] })),
+    { value: 'all', label: '全部' },
   ];
 
-  const selectFilter = (value: Filter) => {
-    setFilter(value);
+  const selectPart = (value: PartFilter) => {
+    setPart(value);
     setQuery('');
     listRef.current?.scrollTo(0, 0);
   };
@@ -66,7 +88,7 @@ export function ExercisePicker({ usedIds, onPick, onClose }: Props) {
 
       {creating ? (
         <CustomExerciseForm
-          defaultPart={filter === 'recent' ? 'chest' : filter}
+          defaultPart={part === 'recent' || part === 'all' ? 'chest' : part}
           initialName={query.trim()}
           onCancel={() => setCreating(false)}
           onCreated={onPick}
@@ -77,33 +99,61 @@ export function ExercisePicker({ usedIds, onPick, onClose }: Props) {
             <input
               type="search"
               class="input"
-              placeholder="搜尋動作名稱"
+              placeholder="搜尋動作、器材或肌群"
               value={query}
               onInput={(e) => setQuery(e.currentTarget.value)}
             />
             <div class="chips" role="tablist" aria-label="部位">
-              {chips.map((c) => (
+              {partChips.map((c) => (
                 <button
                   key={c.value}
                   type="button"
                   role="tab"
-                  aria-selected={!query && filter === c.value}
-                  class={!query && filter === c.value ? 'chip is-active' : 'chip'}
-                  onClick={() => selectFilter(c.value)}
+                  aria-selected={!query && part === c.value}
+                  class={!query && part === c.value ? 'chip is-active' : 'chip'}
+                  onClick={() => selectPart(c.value)}
                 >
-                  {c.value !== 'recent' && <span class={`part-dot part-${c.value}`} aria-hidden="true" />}
+                  {c.value !== 'recent' && c.value !== 'all' && (
+                    <span class={`part-dot part-${c.value}`} aria-hidden="true" />
+                  )}
                   {c.label}
+                </button>
+              ))}
+            </div>
+            <div class="chips chips-sm" role="group" aria-label="器材">
+              {[{ id: 'all' as const, label: '全部器材' }, ...EQUIPMENT_GROUPS].map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  class={gear === g.id ? 'chip chip-sm is-active-soft' : 'chip chip-sm'}
+                  aria-pressed={gear === g.id}
+                  onClick={() => setGear(g.id)}
+                >
+                  {g.label}
                 </button>
               ))}
             </div>
           </div>
 
           <div class="sheet-list" ref={listRef}>
-            {exercises.length === 0 && <p class="sheet-empty">找不到「{query}」，可以新增成自訂動作。</p>}
+            {exercises.length === 0 && (
+              <p class="sheet-empty">{query ? `找不到「${query}」，可以新增成自訂動作。` : '這個分類沒有符合的動作。'}</p>
+            )}
             {exercises.map((e) => (
               <button key={e.id} type="button" class="pick-row" onClick={() => onPick(e.id)}>
-                <span class={`part-dot part-${e.bodyPart}`} aria-hidden="true" />
-                <span class="pick-name">{e.name}</span>
+                <span class="eq-tile" style={{ width: '52px', height: '52px' }}>
+                  <EquipmentIcon equipment={e.equipment} size={42} />
+                </span>
+                <span class="pick-main">
+                  <span class="pick-name">
+                    <span class={`part-dot part-${e.bodyPart}`} aria-hidden="true" />
+                    {e.name}
+                  </span>
+                  <span class="pick-meta">
+                    {EQUIPMENT_LABELS[e.equipment]}｜{e.primaryMuscles.map((m) => MUSCLE_LABELS[m]).join('、')}
+                  </span>
+                </span>
+                {hasGuide(e.id) && <span class="tag tag-accent">示範</span>}
                 {e.isCustom && <span class="tag">自訂</span>}
                 {usedIds.includes(e.id) && <span class="tag tag-accent">已加入</span>}
               </button>
@@ -128,6 +178,7 @@ function CustomExerciseForm(props: {
   const repo = useRepository();
   const [name, setName] = useState(props.initialName);
   const [part, setPart] = useState<BodyPart>(props.defaultPart);
+  const [equipment, setEquipment] = useState<Equipment>('other');
   const [isBodyweight, setIsBodyweight] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -137,7 +188,7 @@ function CustomExerciseForm(props: {
     if (repo.getExercises().some((e) => e.name === trimmed)) return showToast('已經有同名的動作');
     setSaving(true);
     try {
-      const created = await repo.addCustomExercise({ name: trimmed, bodyPart: part, isBodyweight });
+      const created = await repo.addCustomExercise({ name: trimmed, bodyPart: part, isBodyweight, equipment });
       showToast(`已新增「${created.name}」`);
       props.onCreated(created.id);
     } catch (err) {
@@ -154,7 +205,7 @@ function CustomExerciseForm(props: {
           class="input"
           value={name}
           maxLength={30}
-          placeholder="例如：史密斯深蹲"
+          placeholder="例如：單腳腿推"
           onInput={(e) => setName(e.currentTarget.value)}
         />
       </label>
@@ -175,6 +226,30 @@ function CustomExerciseForm(props: {
             </button>
           ))}
         </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">器材：{EQUIPMENT_LABELS[equipment]}</span>
+        {EQUIPMENT_GROUPS.map((g) => (
+          <div key={g.id} class="eq-group">
+            <span class="eq-group-label">{g.label}</span>
+            <div class="eq-grid" role="radiogroup" aria-label={g.label}>
+              {g.items.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={equipment === id}
+                  class={equipment === id ? 'eq-option is-active' : 'eq-option'}
+                  onClick={() => setEquipment(id)}
+                >
+                  <EquipmentIcon equipment={id} size={40} />
+                  <span>{EQUIPMENT_LABELS[id]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       <label class="switch-row">

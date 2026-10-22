@@ -17,8 +17,8 @@ export function LogPage() {
   const nextWeekStart = addDays(weekStart, 7);
   const lastWeekStart = addDays(weekStart, -7);
   const thisWeekCount = sessions.filter((s) => s.date >= weekStart && s.date < nextWeekStart).length;
-  const thisWeekVolume = volumeBetween(sessions, weekStart, nextWeekStart);
-  const lastWeekVolume = volumeBetween(sessions, lastWeekStart, weekStart);
+  const thisWeekVolume = volumeBetween(sessions, weekStart, nextWeekStart, repo.isAssisted);
+  const lastWeekVolume = volumeBetween(sessions, lastWeekStart, weekStart, repo.isAssisted);
 
   /** 一次訓練的動作名稱與練到的部位 */
   const describe = (exerciseIds: string[]) => {
@@ -79,7 +79,7 @@ export function LogPage() {
                   <a href={`#/log/view/${s.id}`} class="session-row">
                     <span class="session-date">{formatDateLabel(s.date)}</span>
                     <span class="session-meta">
-                      <span class="num">{formatVolume(sessionVolume(s))}</span> kg
+                      <span class="num">{formatVolume(sessionVolume(s, repo.isAssisted))}</span> kg
                     </span>
                     <span class="session-names">
                       {sets} 組：{names.join('、')}

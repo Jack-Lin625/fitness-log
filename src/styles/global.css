@@ -1981,3 +1981,518 @@ body:has(.rest-bar) .page-editor {
 .stretch-player .stretch-progress {
   margin-top: 0;
 }
+
+/* ═════════════════ 動作庫擴充 ═════════════════ */
+
+.chips-sm {
+  gap: 6px;
+}
+
+.chip-sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.chip.is-active-soft {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.pick-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  min-width: 0;
+}
+
+.pick-meta {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ═════════════════ 器材插圖 ═════════════════ */
+
+.eq-icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ink);
+}
+
+.eq-icon .w {
+  fill: color-mix(in srgb, var(--accent) 30%, transparent);
+  stroke: var(--accent);
+}
+
+.eq-icon .pad {
+  fill: var(--surface-2);
+}
+
+.eq-icon .pad-line {
+  stroke-width: 6;
+  stroke: var(--muted);
+}
+
+.eq-icon .bold {
+  stroke-width: 4;
+}
+
+.eq-icon .thin {
+  stroke-width: 1.5;
+}
+
+.eq-icon .accent-line {
+  stroke: var(--accent);
+  stroke-width: 4.5;
+}
+
+.eq-icon .floor {
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+/* 插圖底框 */
+.eq-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.pick-row {
+  gap: 12px;
+}
+
+.pick-name .part-dot {
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+.ex-head {
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.ex-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ex-sub {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ex-sub .part-dot {
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  vertical-align: 0;
+}
+
+.view-card .ex-name {
+  gap: 10px;
+}
+
+/* 自訂動作的器材選擇格 */
+.eq-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.eq-group-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.eq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+
+.eq-option {
+  min-height: 84px;
+  padding: 6px 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+}
+
+.eq-option.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ═════════════════ 拉伸升級 ═════════════════ */
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-text-sm {
+  min-height: 36px;
+  font-size: 15px;
+}
+
+.muscle-group {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.muscle-part {
+  min-height: 36px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-weight: 600;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  text-align: left;
+}
+
+.stretch-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stretch-needs {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.stretch-meta {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.stretch-detail {
+  font-size: 14px;
+}
+
+.stretch-info {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.stretch-info h2 {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.stretch-info .stretch-cues {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+.stretch-steps {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.stretch-steps li {
+  padding: 4px 0;
+}
+
+.stretch-steps li::marker {
+  font-family: var(--font-num);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.stretch-mistakes {
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+
+.stretch-mistakes summary {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--pr);
+  cursor: pointer;
+}
+
+.stretch-mistakes ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.stretch-mistakes li {
+  padding: 3px 0;
+}
+
+.segmented-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* ═════════════════ 練前熱身 ═════════════════ */
+
+.card-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.card-actions.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.set-plates {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin: -2px 0 2px 46px;
+  font-family: var(--font-num), var(--font-body);
+  letter-spacing: 0.02em;
+}
+
+.warmup-card {
+  border-left-color: var(--part-legs);
+  background: color-mix(in srgb, var(--part-legs) 12%, var(--surface));
+}
+
+.warmup-card .resume-title {
+  color: var(--ink);
+}
+
+/* ═════════════════ 假人示範 ═════════════════ */
+
+.guide-btn {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  flex: none;
+}
+
+.guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.guide-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 15px;
+}
+
+.guide-meta .muted {
+  font-size: 13px;
+}
+
+.mq {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 8px 12px 12px;
+}
+
+.mq-stage svg {
+  width: 100%;
+  height: auto;
+  max-height: 46vh;
+  display: block;
+}
+
+.mq-caption {
+  text-align: center;
+  font-weight: 600;
+  min-height: 1.6em;
+}
+
+.mq-floor {
+  stroke: var(--line);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.mq-guide {
+  stroke: var(--part-legs);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.mq-guide-label {
+  fill: var(--muted);
+  font-size: 9px;
+  font-family: var(--font-body);
+}
+
+.mq-limb {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 11;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mq-torso {
+  stroke-width: 17;
+}
+
+.mq-neck {
+  stroke-width: 7;
+}
+
+.mq-arm {
+  stroke: color-mix(in srgb, var(--ink) 55%, var(--muted));
+  stroke-width: 8;
+}
+
+.mq-foot {
+  stroke-width: 8;
+}
+
+.mq-head {
+  fill: var(--muted);
+}
+
+.mq-joint {
+  fill: var(--surface);
+}
+
+.mq-plate {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+
+.mq-hub {
+  fill: var(--accent);
+}
+
+.mq-slider {
+  width: 100%;
+  margin-top: 4px;
+  accent-color: var(--accent);
+  height: 28px;
+}
+
+.mq-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: -4px;
+}
+
+.mq-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.guide-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-section h3 {
+  font-size: 17px;
+}
+
+.guide-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.guide-list li {
+  padding: 3px 0;
+}
+
+.guide-mistake-title {
+  color: var(--pr);
+}
+
+.mistake-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mistake-list li {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--pr);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.mistake-what {
+  font-weight: 600;
+}
+
+.mistake-fix {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.guide-safety {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}

@@ -1,12 +1,12 @@
 import { deleteSession, editSession, startFromSession } from '../actions/workout';
 import { BigStat } from '../components/BigStat';
+import { EquipmentIcon } from '../components/EquipmentIcon';
 import { PageHeader } from '../components/PageHeader';
 import { navigate } from '../hooks/useHashRoute';
 import { useRepository } from '../hooks/useRepository';
 import { buildRoutine, routineSeconds } from '../data/stretches';
 import { formatDateLabel, todayString } from '../lib/date';
-import { minutesLabel, stretchPlayPath } from '../lib/stretchRoute';
-import { BODY_PARTS, type BodyPart } from '../types/models';
+import { minutesLabel, stretchPlayPath, trainedMuscles } from '../lib/stretchRoute';
 import { formatNumber } from '../lib/number';
 import { describeRecord } from '../lib/recordText';
 import { findNewRecords } from '../lib/records';
@@ -30,12 +30,11 @@ export function SessionView({ id }: { id: string }) {
 
   const setCount = session.exercises.reduce((n, e) => n + e.sets.length, 0);
 
-  // 這次練到的部位 → 對應的拉伸
-  const trained = new Set(session.exercises.map((e) => repo.getExercise(e.exerciseId)?.bodyPart));
-  const parts = BODY_PARTS.filter((p): p is BodyPart => trained.has(p));
-  const routine = buildRoutine(parts);
+  // 這次練到的肌群 → 對應的拉伸
+  const muscles = trainedMuscles([session], (eid) => repo.getExercise(eid));
+  const routine = buildRoutine(muscles, { roller: repo.getSettings().stretchRoller ?? false });
   const stretchButton = routine.length > 0 && (
-    <button type="button" class="btn btn-outline btn-block btn-two-line" onClick={() => navigate(stretchPlayPath(parts))}>
+    <button type="button" class="btn btn-outline btn-block btn-two-line" onClick={() => navigate(stretchPlayPath(muscles))}>
       <span>練完拉伸一下</span>
       <small>
         {routine.length} 個動作，{minutesLabel(routineSeconds(routine, repo.getSettings().stretchSeconds ?? 30))}
@@ -43,7 +42,7 @@ export function SessionView({ id }: { id: string }) {
     </button>
   );
   const isToday = session.date === todayString();
-  const records = findNewRecords(session, repo.getSessions(), (eid) => repo.getExercise(eid)?.isBodyweight ?? false);
+  const records = findNewRecords(session, repo.getSessions(), repo.traitsOf);
   /** 某一組打破的紀錄（可能同時破重量與 1RM） */
   const recordsOf = (exerciseIndex: number, setIndex: number) =>
     records.filter((r) => r.exerciseIndex === exerciseIndex && r.setIndex === setIndex);
@@ -59,7 +58,7 @@ export function SessionView({ id }: { id: string }) {
       />
 
       <div class="stat-row stat-row-single">
-        <BigStat value={formatVolume(sessionVolume(session))} unit="kg" label="這次的總訓練容量（不含熱身組）" />
+        <BigStat value={formatVolume(sessionVolume(session, repo.isAssisted))} unit="kg" label="這次的總訓練容量（不含熱身組）" />
       </div>
 
       {/* 今天剛練完的訓練，把拉伸放在最顯眼的位置 */}
@@ -68,16 +67,21 @@ export function SessionView({ id }: { id: string }) {
       {session.exercises.map((ex, i) => {
         const exercise = repo.getExercise(ex.exerciseId);
         const bw = exercise?.isBodyweight ?? false;
+        const assisted = exercise?.assisted === true;
         let no = 0;
         return (
           <section key={i} class="view-card">
             <header class="view-head">
               <h2 class="ex-name">
-                {exercise && <span class={`part-dot part-${exercise.bodyPart}`} aria-hidden="true" />}
+                {exercise && (
+                  <span class="eq-tile view-eq" style={{ width: '44px', height: '44px' }}>
+                    <EquipmentIcon equipment={exercise.equipment} size={36} labelled />
+                  </span>
+                )}
                 {exercise?.name ?? '已刪除的動作'}
               </h2>
               <span class="view-volume">
-                <span class="num">{formatVolume(exerciseVolume(ex))}</span> kg
+                <span class="num">{formatVolume(exerciseVolume(ex, repo.isAssisted))}</span> kg
               </span>
             </header>
             <ol class="view-sets">
@@ -89,7 +93,15 @@ export function SessionView({ id }: { id: string }) {
                     <span class="view-set-no">{s.isWarmup ? '熱身' : `第 ${no} 組`}</span>
                     <span class="view-set-main">
                       <span class="num">
-                        {bw ? (s.weight > 0 ? `+${formatNumber(s.weight)}` : '自體重') : formatNumber(s.weight)}
+                        {assisted
+                          ? s.weight > 0
+                            ? `輔助 ${formatNumber(s.weight)}`
+                            : '自體重'
+                          : bw
+                            ? s.weight > 0
+                              ? `+${formatNumber(s.weight)}`
+                              : '自體重'
+                            : formatNumber(s.weight)}
                       </span>
                       {(!bw || s.weight > 0) && <span class="unit">kg</span>}
                       <span class="times">×</span>

@@ -1,63 +1,190 @@
-import type { BodyPart, Exercise } from '../types/models';
+import type { BodyPart, Equipment, Exercise, Muscle } from '../types/models';
 
-/** 建立內建動作的小工具，讓下方清單保持簡潔 */
-function ex(id: string, name: string, bodyPart: BodyPart, isBodyweight = false): Exercise {
-  return { id, name, bodyPart, isBodyweight, isCustom: false };
+interface Options {
+  /** 自體重量動作：weight 代表額外負重 */
+  bw?: boolean;
+  /** 輔助機器：weight 代表輔助重量 */
+  assisted?: boolean;
 }
 
+/** 建立內建動作的小工具，讓下方清單保持簡潔 */
+function ex(
+  id: string,
+  name: string,
+  bodyPart: BodyPart,
+  equipment: Equipment,
+  primaryMuscles: Muscle[],
+  secondaryMuscles: Muscle[] = [],
+  opts: Options = {},
+): Exercise {
+  const e: Exercise = {
+    id,
+    name,
+    bodyPart,
+    equipment,
+    primaryMuscles,
+    secondaryMuscles,
+    isBodyweight: opts.bw === true || opts.assisted === true,
+    isCustom: false,
+  };
+  if (opts.assisted) e.assisted = true;
+  return e;
+}
+
+const BW = { bw: true } as const;
+
 /**
- * 內建動作清單。
- * id 一旦發布就不要修改，否則舊紀錄會找不到對應動作。
+ * 內建動作清單（約 140 個），涵蓋一般大型健身房的器材。
+ * ⚠️ id 一旦發布就不要修改，否則舊紀錄會找不到對應動作。
  */
 export const DEFAULT_EXERCISES: readonly Exercise[] = [
-  // 胸
-  ex('bench-press', '臥推', 'chest'),
-  ex('incline-bench-press', '上斜臥推', 'chest'),
-  ex('db-bench-press', '啞鈴臥推', 'chest'),
-  ex('db-incline-press', '上斜啞鈴臥推', 'chest'),
-  ex('dips', '雙槓撐體', 'chest', true),
-  ex('push-up', '伏地挺身', 'chest', true),
-  ex('cable-fly', '繩索夾胸', 'chest'),
-  ex('machine-chest-press', '機械胸推', 'chest'),
+  // ───────── 胸 ─────────
+  ex('bench-press', '臥推', 'chest', 'barbell', ['pecs'], ['frontDelts', 'triceps']),
+  ex('incline-bench-press', '上斜臥推', 'chest', 'barbell', ['upperPecs'], ['frontDelts', 'triceps']),
+  ex('decline-bench-press', '下斜臥推', 'chest', 'barbell', ['pecs'], ['triceps']),
+  ex('db-bench-press', '啞鈴臥推', 'chest', 'dumbbell', ['pecs'], ['frontDelts', 'triceps']),
+  ex('db-incline-press', '上斜啞鈴臥推', 'chest', 'dumbbell', ['upperPecs'], ['frontDelts', 'triceps']),
+  ex('db-decline-press', '下斜啞鈴臥推', 'chest', 'dumbbell', ['pecs'], ['triceps']),
+  ex('db-fly', '啞鈴飛鳥', 'chest', 'dumbbell', ['pecs'], ['frontDelts']),
+  ex('db-incline-fly', '上斜啞鈴飛鳥', 'chest', 'dumbbell', ['upperPecs'], ['frontDelts']),
+  ex('db-pullover', '啞鈴仰臥拉舉', 'chest', 'dumbbell', ['pecs'], ['lats', 'triceps']),
+  ex('smith-bench-press', '史密斯臥推', 'chest', 'smith', ['pecs'], ['frontDelts', 'triceps']),
+  ex('smith-incline-press', '史密斯上斜臥推', 'chest', 'smith', ['upperPecs'], ['frontDelts', 'triceps']),
+  ex('machine-chest-press', '機械胸推', 'chest', 'chest-press-machine', ['pecs'], ['frontDelts', 'triceps']),
+  ex('incline-machine-press', '上斜機械胸推', 'chest', 'chest-press-machine', ['upperPecs'], ['frontDelts', 'triceps']),
+  ex('pec-deck-fly', '蝴蝶機夾胸', 'chest', 'pec-deck', ['pecs'], []),
+  ex('cable-fly', '繩索夾胸', 'chest', 'cable', ['pecs'], ['frontDelts']),
+  ex('low-cable-fly', '低位繩索夾胸（由下往上）', 'chest', 'cable', ['upperPecs'], ['frontDelts']),
+  ex('high-cable-fly', '高位繩索夾胸（由上往下）', 'chest', 'cable', ['pecs'], []),
+  ex('dips', '雙槓撐體', 'chest', 'dip-station', ['pecs'], ['triceps', 'frontDelts'], BW),
+  ex('assisted-dip', '輔助雙槓撐體', 'chest', 'assisted-machine', ['pecs'], ['triceps', 'frontDelts'], { assisted: true }),
+  ex('push-up', '伏地挺身', 'chest', 'bodyweight', ['pecs'], ['triceps', 'frontDelts'], BW),
+  ex('incline-push-up', '上斜伏地挺身', 'chest', 'bench', ['pecs'], ['triceps', 'frontDelts'], BW),
 
-  // 背
-  ex('deadlift', '硬舉', 'back'),
-  ex('barbell-row', '槓鈴划船', 'back'),
-  ex('db-row', '單臂啞鈴划船', 'back'),
-  ex('pull-up', '引體向上', 'back', true),
-  ex('chin-up', '反手引體向上', 'back', true),
-  ex('lat-pulldown', '滑輪下拉', 'back'),
-  ex('seated-cable-row', '坐姿划船', 'back'),
+  // ───────── 背 ─────────
+  ex('deadlift', '硬舉', 'back', 'barbell', ['lowerBack', 'glutes', 'hamstrings'], ['upperBack', 'traps', 'forearms']),
+  ex('rack-pull', '架上拉', 'back', 'barbell', ['upperBack', 'traps', 'lowerBack'], ['glutes', 'forearms']),
+  ex('barbell-row', '槓鈴划船', 'back', 'barbell', ['upperBack', 'lats'], ['rearDelts', 'biceps', 'lowerBack']),
+  ex('pendlay-row', '彭德雷划船', 'back', 'barbell', ['upperBack', 'lats'], ['rearDelts', 'biceps', 'lowerBack']),
+  ex('tbar-row', 'T 槓划船', 'back', 'tbar', ['upperBack', 'lats'], ['rearDelts', 'biceps']),
+  ex('db-row', '單臂啞鈴划船', 'back', 'dumbbell', ['lats', 'upperBack'], ['rearDelts', 'biceps']),
+  ex('chest-supported-db-row', '胸靠上斜啞鈴划船', 'back', 'dumbbell', ['upperBack'], ['rearDelts', 'biceps']),
+  ex('machine-row', '機械划船', 'back', 'seated-row-machine', ['upperBack', 'lats'], ['rearDelts', 'biceps']),
+  ex('machine-high-row', '機械高位划船', 'back', 'seated-row-machine', ['lats', 'upperBack'], ['biceps']),
+  ex('seated-cable-row', '坐姿繩索划船', 'back', 'cable', ['upperBack', 'lats'], ['biceps', 'rearDelts']),
+  ex('single-arm-cable-row', '單臂繩索划船', 'back', 'cable', ['lats'], ['biceps', 'upperBack']),
+  ex('pull-up', '引體向上', 'back', 'pullup-bar', ['lats'], ['biceps', 'upperBack'], BW),
+  ex('chin-up', '反手引體向上', 'back', 'pullup-bar', ['lats', 'biceps'], ['upperBack'], BW),
+  ex('neutral-pull-up', '對握引體向上', 'back', 'pullup-bar', ['lats'], ['biceps', 'forearms'], BW),
+  ex('assisted-pull-up', '輔助引體向上', 'back', 'assisted-machine', ['lats'], ['biceps', 'upperBack'], { assisted: true }),
+  ex('lat-pulldown', '滑輪下拉', 'back', 'lat-pulldown', ['lats'], ['biceps', 'upperBack']),
+  ex('close-grip-pulldown', '窄握滑輪下拉', 'back', 'lat-pulldown', ['lats'], ['biceps']),
+  ex('reverse-grip-pulldown', '反手滑輪下拉', 'back', 'lat-pulldown', ['lats'], ['biceps']),
+  ex('single-arm-pulldown', '單臂繩索下拉', 'back', 'cable', ['lats'], ['biceps']),
+  ex('straight-arm-pulldown', '直臂下拉', 'back', 'cable', ['lats'], []),
+  ex('inverted-row', '反式划船', 'back', 'smith', ['upperBack'], ['lats', 'biceps', 'rearDelts'], BW),
+  ex('back-extension', '背伸展（羅馬椅）', 'back', 'back-extension', ['lowerBack'], ['glutes', 'hamstrings'], BW),
+  ex('superman', '超人式', 'back', 'bodyweight', ['lowerBack'], ['glutes'], BW),
+  ex('barbell-shrug', '槓鈴聳肩', 'back', 'barbell', ['traps'], ['forearms']),
+  ex('db-shrug', '啞鈴聳肩', 'back', 'dumbbell', ['traps'], ['forearms']),
 
-  // 腿
-  ex('squat', '深蹲', 'legs'),
-  ex('front-squat', '前蹲舉', 'legs'),
-  ex('romanian-deadlift', '羅馬尼亞硬舉', 'legs'),
-  ex('leg-press', '腿推', 'legs'),
-  ex('bulgarian-split-squat', '保加利亞分腿蹲', 'legs'),
-  ex('hip-thrust', '臀推', 'legs'),
-  ex('leg-extension', '腿伸', 'legs'),
-  ex('leg-curl', '腿彎舉', 'legs'),
-  ex('calf-raise', '提踵', 'legs'),
+  // ───────── 腿 ─────────
+  ex('squat', '深蹲', 'legs', 'barbell', ['quads', 'glutes'], ['adductors', 'lowerBack']),
+  ex('front-squat', '前蹲舉', 'legs', 'barbell', ['quads'], ['glutes', 'upperBack']),
+  ex('smith-squat', '史密斯深蹲', 'legs', 'smith', ['quads', 'glutes'], ['adductors']),
+  ex('hack-squat', '哈克深蹲', 'legs', 'hack-squat', ['quads'], ['glutes']),
+  ex('leg-press', '腿推', 'legs', 'leg-press', ['quads', 'glutes'], ['adductors', 'hamstrings']),
+  ex('goblet-squat', '高腳杯深蹲', 'legs', 'dumbbell', ['quads', 'glutes'], ['adductors']),
+  ex('sumo-squat', '相撲深蹲', 'legs', 'dumbbell', ['adductors', 'glutes'], ['quads']),
+  ex('bulgarian-split-squat', '保加利亞分腿蹲', 'legs', 'dumbbell', ['quads', 'glutes'], ['adductors']),
+  ex('walking-lunge', '行走弓箭步', 'legs', 'dumbbell', ['quads', 'glutes'], ['hamstrings', 'adductors']),
+  ex('reverse-lunge', '後跨弓箭步', 'legs', 'dumbbell', ['glutes', 'quads'], ['hamstrings']),
+  ex('smith-lunge', '史密斯弓箭步', 'legs', 'smith', ['quads', 'glutes'], ['hamstrings']),
+  ex('step-up', '登階', 'legs', 'dumbbell', ['quads', 'glutes'], []),
+  ex('romanian-deadlift', '羅馬尼亞硬舉', 'legs', 'barbell', ['hamstrings', 'glutes'], ['lowerBack']),
+  ex('db-romanian-deadlift', '啞鈴羅馬尼亞硬舉', 'legs', 'dumbbell', ['hamstrings', 'glutes'], ['lowerBack']),
+  ex('stiff-leg-deadlift', '直腿硬舉', 'legs', 'barbell', ['hamstrings'], ['glutes', 'lowerBack']),
+  ex('sumo-deadlift', '相撲硬舉', 'legs', 'barbell', ['glutes', 'quads', 'adductors'], ['hamstrings', 'lowerBack']),
+  ex('trap-bar-deadlift', '六角槓硬舉', 'legs', 'trapbar', ['quads', 'glutes'], ['hamstrings', 'lowerBack', 'traps']),
+  ex('good-morning', '早安式', 'legs', 'barbell', ['hamstrings', 'lowerBack'], ['glutes']),
+  ex('hip-thrust', '臀推', 'legs', 'barbell', ['glutes'], ['hamstrings']),
+  ex('machine-hip-thrust', '機械臀推', 'legs', 'hip-thrust-machine', ['glutes'], ['hamstrings']),
+  ex('glute-bridge', '臀橋', 'legs', 'bodyweight', ['glutes'], ['hamstrings'], BW),
+  ex('cable-kickback', '繩索後踢腿', 'legs', 'cable', ['glutes'], ['hamstrings']),
+  ex('kb-swing', '壺鈴擺盪', 'legs', 'kettlebell', ['glutes', 'hamstrings'], ['lowerBack']),
+  ex('leg-extension', '腿伸', 'legs', 'leg-extension', ['quads'], []),
+  ex('leg-curl', '坐姿腿彎舉', 'legs', 'leg-curl', ['hamstrings'], []),
+  ex('lying-leg-curl', '俯臥腿彎舉', 'legs', 'leg-curl', ['hamstrings'], ['calves']),
+  ex('nordic-curl', '北歐腿彎舉', 'legs', 'bodyweight', ['hamstrings'], [], BW),
+  ex('hip-abduction', '髖外展（機器）', 'legs', 'hip-machine', ['abductors'], ['glutes']),
+  ex('hip-adduction', '髖內收（機器）', 'legs', 'hip-machine', ['adductors'], []),
+  ex('cable-hip-abduction', '繩索側抬腿', 'legs', 'cable', ['abductors'], ['glutes']),
+  ex('calf-raise', '站姿提踵', 'legs', 'calf-machine', ['calves'], []),
+  ex('seated-calf-raise', '坐姿提踵', 'legs', 'calf-machine', ['calves'], []),
+  ex('leg-press-calf-raise', '腿推機提踵', 'legs', 'leg-press', ['calves'], []),
+  ex('db-calf-raise', '啞鈴單腳提踵', 'legs', 'dumbbell', ['calves'], []),
+  ex('box-jump', '跳箱', 'legs', 'box', ['quads', 'glutes'], ['calves'], BW),
 
-  // 肩
-  ex('overhead-press', '肩推', 'shoulders'),
-  ex('db-shoulder-press', '啞鈴肩推', 'shoulders'),
-  ex('lateral-raise', '側平舉', 'shoulders'),
-  ex('rear-delt-fly', '反向飛鳥', 'shoulders'),
-  ex('face-pull', '臉拉', 'shoulders'),
+  // ───────── 肩 ─────────
+  ex('overhead-press', '肩推', 'shoulders', 'barbell', ['frontDelts'], ['sideDelts', 'triceps', 'upperPecs']),
+  ex('push-press', '借力推', 'shoulders', 'barbell', ['frontDelts'], ['triceps', 'quads']),
+  ex('db-shoulder-press', '啞鈴肩推', 'shoulders', 'dumbbell', ['frontDelts'], ['sideDelts', 'triceps']),
+  ex('arnold-press', '阿諾肩推', 'shoulders', 'dumbbell', ['frontDelts', 'sideDelts'], ['triceps']),
+  ex('kb-press', '壺鈴肩推', 'shoulders', 'kettlebell', ['frontDelts'], ['triceps']),
+  ex('machine-shoulder-press', '機械肩推', 'shoulders', 'shoulder-press-machine', ['frontDelts'], ['sideDelts', 'triceps']),
+  ex('smith-shoulder-press', '史密斯肩推', 'shoulders', 'smith', ['frontDelts'], ['sideDelts', 'triceps']),
+  ex('landmine-press', '地雷管推舉', 'shoulders', 'barbell', ['frontDelts', 'upperPecs'], ['triceps']),
+  ex('lateral-raise', '側平舉', 'shoulders', 'dumbbell', ['sideDelts'], []),
+  ex('cable-lateral-raise', '繩索側平舉', 'shoulders', 'cable', ['sideDelts'], []),
+  ex('machine-lateral-raise', '機械側平舉', 'shoulders', 'lateral-raise-machine', ['sideDelts'], []),
+  ex('front-raise', '啞鈴前平舉', 'shoulders', 'dumbbell', ['frontDelts'], []),
+  ex('upright-row', '直立划船', 'shoulders', 'ezbar', ['sideDelts', 'traps'], ['biceps']),
+  ex('rear-delt-fly', '反向飛鳥（蝴蝶機）', 'shoulders', 'pec-deck', ['rearDelts'], ['upperBack']),
+  ex('db-rear-delt-fly', '俯身啞鈴反向飛鳥', 'shoulders', 'dumbbell', ['rearDelts'], ['upperBack']),
+  ex('cable-rear-delt-fly', '繩索反向飛鳥', 'shoulders', 'cable', ['rearDelts'], ['upperBack']),
+  ex('face-pull', '臉拉', 'shoulders', 'cable', ['rearDelts'], ['upperBack', 'traps']),
+  ex('incline-y-raise', '俯臥 Y 字舉', 'shoulders', 'dumbbell', ['sideDelts', 'traps'], ['rearDelts']),
+  ex('band-pull-apart', '彈力帶擴胸', 'shoulders', 'band', ['rearDelts'], ['upperBack']),
 
-  // 手臂
-  ex('barbell-curl', '槓鈴彎舉', 'arms'),
-  ex('db-curl', '啞鈴彎舉', 'arms'),
-  ex('hammer-curl', '錘式彎舉', 'arms'),
-  ex('triceps-pushdown', '三頭下壓', 'arms'),
-  ex('skull-crusher', '仰臥三頭伸展', 'arms'),
-  ex('overhead-triceps-ext', '過頭三頭伸展', 'arms'),
+  // ───────── 手臂 ─────────
+  ex('barbell-curl', '槓鈴彎舉', 'arms', 'barbell', ['biceps'], ['forearms']),
+  ex('ez-curl', '曲槓彎舉', 'arms', 'ezbar', ['biceps'], ['forearms']),
+  ex('db-curl', '啞鈴彎舉', 'arms', 'dumbbell', ['biceps'], ['forearms']),
+  ex('incline-db-curl', '上斜啞鈴彎舉', 'arms', 'dumbbell', ['biceps'], []),
+  ex('hammer-curl', '錘式彎舉', 'arms', 'dumbbell', ['biceps', 'forearms'], []),
+  ex('concentration-curl', '集中彎舉', 'arms', 'dumbbell', ['biceps'], []),
+  ex('preacher-curl', '牧師椅彎舉', 'arms', 'preacher-bench', ['biceps'], []),
+  ex('cable-curl', '繩索彎舉', 'arms', 'cable', ['biceps'], ['forearms']),
+  ex('cable-hammer-curl', '繩索錘式彎舉', 'arms', 'cable', ['biceps', 'forearms'], []),
+  ex('machine-curl', '機械二頭彎舉', 'arms', 'arm-machine', ['biceps'], []),
+  ex('reverse-curl', '反握彎舉', 'arms', 'ezbar', ['forearms', 'biceps'], []),
+  ex('triceps-pushdown', '三頭下壓', 'arms', 'cable', ['triceps'], []),
+  ex('rope-pushdown', '繩把三頭下壓', 'arms', 'cable', ['triceps'], []),
+  ex('cable-overhead-triceps', '繩索過頭三頭伸展', 'arms', 'cable', ['triceps'], []),
+  ex('overhead-triceps-ext', '啞鈴過頭三頭伸展', 'arms', 'dumbbell', ['triceps'], []),
+  ex('skull-crusher', '仰臥三頭伸展', 'arms', 'ezbar', ['triceps'], []),
+  ex('close-grip-bench', '窄握臥推', 'arms', 'barbell', ['triceps'], ['pecs', 'frontDelts']),
+  ex('db-kickback', '啞鈴三頭後踢', 'arms', 'dumbbell', ['triceps'], []),
+  ex('machine-triceps', '機械三頭撐體', 'arms', 'arm-machine', ['triceps'], ['pecs']),
+  ex('bench-dip', '椅子撐體', 'arms', 'bench', ['triceps'], ['frontDelts'], BW),
+  ex('diamond-push-up', '鑽石伏地挺身', 'arms', 'bodyweight', ['triceps'], ['pecs'], BW),
+  ex('wrist-curl', '腕彎舉', 'arms', 'dumbbell', ['forearms'], []),
+  ex('reverse-wrist-curl', '反向腕彎舉', 'arms', 'dumbbell', ['forearms'], []),
 
-  // 核心
-  ex('plank', '棒式', 'core', true),
-  ex('hanging-leg-raise', '懸垂舉腿', 'core', true),
-  ex('cable-crunch', '繩索捲腹', 'core'),
-  ex('ab-wheel', '健腹輪', 'core', true),
+  // ───────── 核心 ─────────
+  ex('plank', '棒式', 'core', 'bodyweight', ['abs'], ['obliques'], BW),
+  ex('side-plank', '側棒式', 'core', 'bodyweight', ['obliques'], ['abs'], BW),
+  ex('crunch', '捲腹', 'core', 'bodyweight', ['abs'], [], BW),
+  ex('decline-situp', '下斜仰臥起坐', 'core', 'bench', ['abs'], ['hipFlexors'], BW),
+  ex('hanging-leg-raise', '懸垂舉腿', 'core', 'pullup-bar', ['abs', 'hipFlexors'], ['obliques'], BW),
+  ex('hanging-knee-raise', '懸垂提膝', 'core', 'pullup-bar', ['abs', 'hipFlexors'], [], BW),
+  ex('captains-chair-raise', '雙槓提膝', 'core', 'dip-station', ['abs', 'hipFlexors'], [], BW),
+  ex('cable-crunch', '繩索捲腹', 'core', 'cable', ['abs'], []),
+  ex('machine-crunch', '機械捲腹', 'core', 'ab-machine', ['abs'], []),
+  ex('ab-wheel', '健腹輪', 'core', 'ab-wheel', ['abs'], ['lats'], BW),
+  ex('russian-twist', '俄羅斯轉體', 'core', 'bodyweight', ['obliques'], ['abs'], BW),
+  ex('cable-woodchop', '繩索伐木', 'core', 'cable', ['obliques'], ['abs']),
+  ex('pallof-press', '抗旋轉推', 'core', 'cable', ['obliques', 'abs'], []),
+  ex('db-side-bend', '啞鈴側彎', 'core', 'dumbbell', ['obliques'], []),
+  ex('dead-bug', '死蟲式', 'core', 'bodyweight', ['abs'], [], BW),
 ];

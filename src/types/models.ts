@@ -20,6 +20,33 @@ export const BODY_PART_LABELS: Record<BodyPart, string> = {
   core: '核心',
 };
 
+/**
+ * 肌群（拉伸、訓練量分析用）
+ * 依健身房常用的分法，粒度足以區分「股四頭」「腿後」「內收肌」這類拉伸目標。
+ */
+export type Muscle =
+  | 'pecs' | 'upperPecs'
+  | 'lats' | 'upperBack' | 'traps' | 'lowerBack'
+  | 'frontDelts' | 'sideDelts' | 'rearDelts'
+  | 'biceps' | 'triceps' | 'forearms'
+  | 'quads' | 'hamstrings' | 'glutes' | 'abductors' | 'adductors' | 'hipFlexors' | 'calves'
+  | 'abs' | 'obliques';
+
+/** 器材（一般大型健身房常見的器材） */
+export type Equipment =
+  // 自由重量
+  | 'barbell' | 'ezbar' | 'trapbar' | 'dumbbell' | 'kettlebell' | 'band'
+  // 纜繩、史密斯
+  | 'cable' | 'smith'
+  // 機器
+  | 'chest-press-machine' | 'pec-deck' | 'shoulder-press-machine' | 'lateral-raise-machine'
+  | 'lat-pulldown' | 'seated-row-machine' | 'tbar' | 'assisted-machine'
+  | 'leg-press' | 'hack-squat' | 'leg-extension' | 'leg-curl' | 'hip-machine' | 'hip-thrust-machine'
+  | 'calf-machine' | 'arm-machine' | 'ab-machine'
+  // 椅子、架子、徒手
+  | 'bench' | 'preacher-bench' | 'back-extension' | 'pullup-bar' | 'dip-station' | 'ab-wheel' | 'box'
+  | 'bodyweight' | 'other';
+
 /** 動作定義 */
 export interface Exercise {
   /** 內建動作用固定 id（如 'squat'），自訂動作用 uuid */
@@ -27,8 +54,16 @@ export interface Exercise {
   /** 顯示名稱，如「深蹲」 */
   name: string;
   bodyPart: BodyPart;
+  /** 主要使用的器材 */
+  equipment: Equipment;
+  /** 主要訓練的肌群 */
+  primaryMuscles: Muscle[];
+  /** 輔助出力的肌群 */
+  secondaryMuscles: Muscle[];
   /** 自體重量動作（引體向上、伏地挺身等），weight 代表額外負重 */
   isBodyweight: boolean;
+  /** 輔助機器動作（輔助引體向上等），weight 代表「輔助重量」，越重越輕鬆，不計入容量與重量紀錄 */
+  assisted?: boolean;
   /** 只有自訂動作可以刪除 */
   isCustom: boolean;
   /** 刪除自訂動作時改為封存，避免舊紀錄找不到對應動作 */
@@ -95,6 +130,8 @@ export interface Settings {
   lastBackupAt?: number;
   /** 每個拉伸動作維持的秒數（未設定時為 30） */
   stretchSeconds?: number;
+  /** 拉伸時加入滾筒放鬆 */
+  stretchRoller?: boolean;
 }
 
 /*
@@ -133,7 +170,7 @@ export interface WorkoutDraft {
 }
 
 /** 目前資料格式版本 */
-export const CURRENT_DATA_VERSION = 2;
+export const CURRENT_DATA_VERSION = 3;
 
 /**
  * localStorage 中實際儲存的根物件。

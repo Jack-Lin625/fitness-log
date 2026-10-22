@@ -47,7 +47,7 @@ export function sessionsToCsv(
           set.reps,
           set.rpe,
           set.isWarmup ? '是' : '',
-          setVolume(set),
+          e?.assisted ? 0 : setVolume(set),
           s.note,
         ]);
       });

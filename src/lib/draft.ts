@@ -109,8 +109,9 @@ export function draftToSession(draft: WorkoutDraft, existing?: WorkoutSession): 
   return { session, skippedSets };
 }
 
-/** 一組的簡短文字，如「80×5」「+10×8」「×12」 */
-export function formatSetShort(set: WorkoutSet, isBodyweight: boolean): string {
+/** 一組的簡短文字，如「80×5」「+10×8」「×12」「×8（輔助 20）」 */
+export function formatSetShort(set: WorkoutSet, isBodyweight: boolean, assisted = false): string {
+  if (assisted) return set.weight > 0 ? `×${set.reps}（輔助 ${formatNumber(set.weight)}）` : `×${set.reps}`;
   if (isBodyweight) return set.weight > 0 ? `+${formatNumber(set.weight)}×${set.reps}` : `×${set.reps}`;
   return `${formatNumber(set.weight)}×${set.reps}`;
 }

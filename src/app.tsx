@@ -10,7 +10,7 @@ import { LogPage } from './pages/LogPage';
 import { SessionEditorRoute } from './pages/SessionEditor';
 import { SessionView } from './pages/SessionView';
 import { SettingsPage } from './pages/SettingsPage';
-import { StretchPlayer } from './pages/StretchPlayer';
+import { RoutinePlayer } from './pages/RoutinePlayer';
 import { ToolsPage } from './pages/ToolsPage';
 
 const PAGES: Record<Exclude<Route, 'tools' | 'charts'>, FunctionComponent> = {
@@ -24,13 +24,16 @@ export function App() {
 
   // 訓練進行中是全螢幕畫面，隱藏底部導覽，避免誤觸跳走
   const isEditor = route === 'log' && params[0] === 'session';
-  const isStretch = route === 'tools' && params[0] === 'stretch' && params[1] === 'play';
+  // 熱身、拉伸的引導播放（全螢幕）
+  const playerMode =
+    route === 'tools' && (params[0] === 'stretch' || params[0] === 'warmup') && params[1] === 'play' ? params[0] : null;
+  const isStretch = playerMode !== null;
   const fullscreen = isEditor || isStretch;
   const viewId = route === 'log' && params[0] === 'view' ? params[1] : undefined;
 
   let content;
   if (isEditor) content = <SessionEditorRoute />;
-  else if (isStretch) content = <StretchPlayer key={params[2]} partsParam={params[2]} />;
+  else if (playerMode) content = <RoutinePlayer key={`${playerMode}-${params[2]}`} mode={playerMode} musclesParam={params[2]} />;
   else if (viewId) content = <SessionView id={viewId} />;
   else if (route === 'tools') content = <ToolsPage tab={params[0]} />;
   else if (route === 'charts') content = <ChartsPage params={params} />;
