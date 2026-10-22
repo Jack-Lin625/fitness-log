@@ -34,6 +34,10 @@ jobs:
       - name: 安裝套件
         run: npm ci
 
+      # 測試沒過就不會部署，壞掉的版本不會跑到手機上
+      - name: 執行測試
+        run: npm test
+
       - name: 型別檢查並建置
         run: npm run build
 

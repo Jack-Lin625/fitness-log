@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import { resumeDraft, startFromSession, startNewWorkout } from '../actions/workout';
 import { BigStat } from '../components/BigStat';
 import { EmptyState } from '../components/EmptyState';
@@ -7,9 +8,13 @@ import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date'
 import { formatVolume, sessionVolume, volumeBetween } from '../lib/volume';
 import { BODY_PARTS, type BodyPart } from '../types/models';
 
+/** 歷史紀錄一次顯示的筆數（練了幾年後清單會很長） */
+const HISTORY_PAGE = 30;
+
 export function LogPage() {
   const repo = useRepository();
   const sessions = repo.getSessions();
+  const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE);
   const draft = repo.getDraft();
   const last = sessions[0];
   // 本週與上週（週一起算）
@@ -71,7 +76,7 @@ export function LogPage() {
         <section class="section">
           <h2 class="section-title">歷史紀錄（{sessions.length} 次）</h2>
           <ul class="session-list">
-            {sessions.map((s) => {
+            {sessions.slice(0, historyLimit).map((s) => {
               const { names, parts } = describe(s.exercises.map((e) => e.exerciseId));
               const sets = s.exercises.reduce((n, e) => n + e.sets.length, 0);
               return (
@@ -94,6 +99,11 @@ export function LogPage() {
               );
             })}
           </ul>
+          {sessions.length > historyLimit && (
+            <button type="button" class="btn btn-ghost btn-block" onClick={() => setHistoryLimit((n) => n + HISTORY_PAGE)}>
+              顯示更多（還有 {sessions.length - historyLimit} 次）
+            </button>
+          )}
         </section>
       )}
     </>

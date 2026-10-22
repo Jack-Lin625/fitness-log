@@ -15,7 +15,7 @@ export function SettingsPage() {
   const repo = useRepository();
   const status = repo.loadStatus;
   const settings = repo.getSettings();
-  const data = repo.exportData();
+  const data = repo.getData();
   const exercises = repo.getExercises();
   const sizeKb = (JSON.stringify(data).length / 1024).toFixed(1);
 

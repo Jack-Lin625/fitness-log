@@ -53,16 +53,32 @@ export function VolumeView() {
     <div class="tool">
       <div class="chip-bar">
         <div class="chips" role="group" aria-label="指標">
-          <button type="button" class={metric === 'volume' ? 'chip is-active' : 'chip'} onClick={() => setMetric('volume')}>
+          <button
+            type="button"
+            class={metric === 'volume' ? 'chip is-active' : 'chip'}
+            aria-pressed={metric === 'volume'}
+            onClick={() => setMetric('volume')}
+          >
             容量
           </button>
-          <button type="button" class={metric === 'sets' ? 'chip is-active' : 'chip'} onClick={() => setMetric('sets')}>
+          <button
+            type="button"
+            class={metric === 'sets' ? 'chip is-active' : 'chip'}
+            aria-pressed={metric === 'sets'}
+            onClick={() => setMetric('sets')}
+          >
             組數
           </button>
         </div>
         <div class="chips" role="group" aria-label="週數">
           {[4, 8, 12].map((n) => (
-            <button key={n} type="button" class={weeks === n ? 'chip is-active' : 'chip'} onClick={() => setWeeks(n)}>
+            <button
+              key={n}
+              type="button"
+              class={weeks === n ? 'chip is-active' : 'chip'}
+              aria-pressed={weeks === n}
+              onClick={() => setWeeks(n)}
+            >
               {n} 週
             </button>
           ))}

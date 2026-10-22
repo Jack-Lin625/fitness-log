@@ -1,6 +1,7 @@
 import type { FunctionComponent } from 'preact';
 import { BottomNav } from './components/BottomNav';
 import { DialogHost } from './components/Dialog';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { RestTimerBar } from './components/RestTimerBar';
 import { ToastHost } from './components/Toast';
 import { useHashRoute, type Route } from './hooks/useHashRoute';
@@ -44,7 +45,9 @@ export function App() {
 
   return (
     <>
-      <main class={fullscreen ? 'page page-editor' : 'page'}>{content}</main>
+      <main class={fullscreen ? 'page page-editor' : 'page'}>
+        <ErrorBoundary resetKey={[route, ...params].join('/')}>{content}</ErrorBoundary>
+      </main>
       {!fullscreen && <BottomNav current={route} />}
       {!isStretch && <RestTimerBar aboveNav={!fullscreen} />}
       <DialogHost />

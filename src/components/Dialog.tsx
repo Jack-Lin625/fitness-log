@@ -35,15 +35,22 @@ function close(ok: boolean) {
 export function DialogHost() {
   const pending = useStore(dialogStore);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!pending) return;
-    confirmRef.current?.focus();
+    const previous = document.activeElement;
+    // 危險操作預設聚焦「取消」，避免一按 Enter 就刪除
+    (pending.danger ? cancelRef : confirmRef).current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close(false);
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      // 關閉後把焦點還給開啟對話框的按鈕
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
   }, [pending]);
 
   if (!pending) return null;
@@ -54,7 +61,7 @@ export function DialogHost() {
         <h2 id="dialog-title">{pending.title}</h2>
         {pending.body && <p>{pending.body}</p>}
         <div class="dialog-actions">
-          <button type="button" class="btn btn-secondary" onClick={() => close(false)}>
+          <button type="button" ref={cancelRef} class="btn btn-secondary" onClick={() => close(false)}>
             {pending.cancelText ?? '取消'}
           </button>
           <button

@@ -65,9 +65,28 @@ export function bodyMetricsToCsv(metrics: BodyMetric[]): string {
   return toCsv([header, ...rows]);
 }
 
-/** 下載檔案到使用者裝置 */
-export function downloadFile(filename: string, content: string, mime: string): void {
+/** iPhone 從主畫面開啟（獨立視窗）時，navigator.standalone 為 true；其他瀏覽器沒有這個屬性 */
+const isIosStandalone = () => (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+/**
+ * 把檔案交給使用者：一般情況直接下載；
+ * iPhone 從主畫面開啟時下載常常沒反應，改用分享選單（可以「儲存到檔案」或傳到雲端、LINE）。
+ * 回傳 false 代表使用者在分享選單按了取消。
+ */
+export async function downloadFile(filename: string, content: string, mime: string): Promise<boolean> {
   const blob = new Blob([content], { type: mime });
+  if (isIosStandalone()) {
+    const file = new File([blob], filename, { type: mime });
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return true;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return false;
+        // 其他錯誤：退回一般下載
+      }
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -77,6 +96,7 @@ export function downloadFile(filename: string, content: string, mime: string): v
   a.remove();
   // 給瀏覽器一點時間開始下載再釋放
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
 /** 檔名加上日期，例如 fitlog-backup-2026-10-20.json */

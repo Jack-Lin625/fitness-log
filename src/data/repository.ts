@@ -38,6 +38,13 @@ export class Repository {
   private readonly listeners = new Set<() => void>();
   private _loadStatus: LoadStatus = { ok: true, isNew: true };
 
+  /*
+   * 衍生資料的快取。因為快取物件不可變，來源陣列換了（被寫入）才需要重算，
+   * 不必在每個寫入方法裡手動清除。
+   */
+  private exerciseCache: { source: Exercise[]; all: Exercise[]; byId: Map<string, Exercise> } | null = null;
+  private sessionCache: { source: WorkoutSession[]; sorted: WorkoutSession[] } | null = null;
+
   constructor(private readonly adapter: StorageAdapter) {}
 
   get loadStatus(): LoadStatus {
@@ -84,15 +91,25 @@ export class Repository {
 
   // ───────── 動作 ─────────
 
+  /** 內建 + 自訂動作，以及 id 索引（畫面每次渲染會查很多次，不要每次都重建） */
+  private exerciseIndex() {
+    const source = this.data.customExercises;
+    if (this.exerciseCache?.source !== source) {
+      const all = [...DEFAULT_EXERCISES, ...source];
+      this.exerciseCache = { source, all, byId: new Map(all.map((e) => [e.id, e])) };
+    }
+    return this.exerciseCache;
+  }
+
   /** 所有動作（內建 + 自訂），預設排除已封存 */
   getExercises(includeArchived = false): Exercise[] {
-    const all = [...DEFAULT_EXERCISES, ...this.data.customExercises];
-    return includeArchived ? all : all.filter((e) => !e.archived);
+    const { all } = this.exerciseIndex();
+    return includeArchived ? [...all] : all.filter((e) => !e.archived);
   }
 
   /** 依 id 取得動作（包含已封存，讓舊紀錄仍能顯示名稱） */
   getExercise(id: string): Exercise | undefined {
-    return this.getExercises(true).find((e) => e.id === id);
+    return this.exerciseIndex().byId.get(id);
   }
 
   /** 是否為輔助機器動作（重量代表輔助，不計入容量） */
@@ -128,11 +145,19 @@ export class Repository {
 
   // ───────── 訓練 ─────────
 
+  /** 新到舊排序的訓練（內部共用，不可修改） */
+  private sortedSessions(): readonly WorkoutSession[] {
+    const source = this.data.sessions;
+    if (this.sessionCache?.source !== source) {
+      const sorted = [...source].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+      this.sessionCache = { source, sorted };
+    }
+    return this.sessionCache.sorted;
+  }
+
   /** 所有訓練，新到舊排序 */
   getSessions(): WorkoutSession[] {
-    return [...this.data.sessions].sort(
-      (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt,
-    );
+    return [...this.sortedSessions()];
   }
 
   getSession(id: string): WorkoutSession | undefined {
@@ -155,7 +180,7 @@ export class Repository {
 
   /** 某動作最近一次的紀錄；editingSessionId 用來排除正在修改的那一筆 */
   getLastPerformance(exerciseId: string, excludeSessionId?: string): LastPerformance | null {
-    for (const session of this.getSessions()) {
+    for (const session of this.sortedSessions()) {
       if (session.id === excludeSessionId) continue;
       const ex = session.exercises.find((e) => e.exerciseId === exerciseId);
       if (ex) return { date: session.date, sets: ex.sets };
@@ -166,7 +191,7 @@ export class Repository {
   /** 最近用過的動作 id（新到舊、不重複） */
   getRecentExerciseIds(limit: number): string[] {
     const seen = new Set<string>();
-    for (const session of this.getSessions()) {
+    for (const session of this.sortedSessions()) {
       for (const ex of session.exercises) {
         seen.add(ex.exerciseId);
         if (seen.size >= limit) return [...seen];
@@ -234,6 +259,11 @@ export class Repository {
   }
 
   // ───────── 整體資料（匯出、匯入、清除） ─────────
+
+  /** 目前完整資料（唯讀），給畫面顯示筆數、大小用；不要修改，要改請用寫入方法 */
+  getData(): Readonly<AppData> {
+    return this.data;
+  }
 
   /** 目前完整資料的深拷貝，供匯出使用 */
   exportData(): AppData {

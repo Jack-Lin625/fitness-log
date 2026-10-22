@@ -1,11 +1,16 @@
-import { DEFAULT_MUSCLES } from './catalog';
+import { STORED_METRICS } from '../lib/bodyMetrics';
+import { DEFAULT_MUSCLES, EQUIPMENT_LABELS, MUSCLE_LABELS } from './catalog';
 import {
   BODY_PARTS,
   type BodyPart,
   CURRENT_DATA_VERSION,
   type AppData,
   type BodyMetric,
+  type DraftExercise,
+  type DraftSet,
+  type Equipment,
   type Exercise,
+  type Muscle,
   type Settings,
   type WorkoutDraft,
   type WorkoutSession,
@@ -102,14 +107,23 @@ function isValidExercise(v: unknown): v is Exercise {
   );
 }
 
-/** 舊版自訂動作沒有器材與肌群：補上「其他」與部位預設肌群 */
+const isEquipment = (v: unknown): v is Equipment => typeof v === 'string' && v in EQUIPMENT_LABELS;
+const isMuscle = (v: unknown): v is Muscle => typeof v === 'string' && v in MUSCLE_LABELS;
+/** 只留下認得的肌群（畫面會用肌群查中文名稱） */
+const knownMuscles = (v: unknown): Muscle[] => (Array.isArray(v) ? v.filter(isMuscle) : []);
+
+/**
+ * 舊版自訂動作沒有器材與肌群：補上「其他」與部位預設肌群。
+ * 認不得的器材、肌群（例如手動改過的備份檔）也一樣處理，避免畫面查不到名稱而出錯。
+ */
 function withExerciseDefaults(e: Exercise): Exercise {
   const part = e.bodyPart as BodyPart;
+  const primary = knownMuscles(e.primaryMuscles);
   return {
     ...e,
-    equipment: typeof e.equipment === 'string' ? e.equipment : 'other',
-    primaryMuscles: Array.isArray(e.primaryMuscles) && e.primaryMuscles.length ? e.primaryMuscles : [...DEFAULT_MUSCLES[part]],
-    secondaryMuscles: Array.isArray(e.secondaryMuscles) ? e.secondaryMuscles : [],
+    equipment: isEquipment(e.equipment) ? e.equipment : 'other',
+    primaryMuscles: primary.length ? primary : [...DEFAULT_MUSCLES[part]],
+    secondaryMuscles: knownMuscles(e.secondaryMuscles),
     isBodyweight: e.isBodyweight === true,
     isCustom: true,
   };
@@ -119,14 +133,76 @@ function isValidBodyMetric(v: unknown): v is BodyMetric {
   return isRecord(v) && isStr(v.id) && typeof v.date === 'string' && DATE_RE.test(v.date);
 }
 
+/** 體態數值只保留有效的數字 */
+function withValidMetrics(m: BodyMetric): BodyMetric {
+  const result: BodyMetric = { id: m.id, date: m.date };
+  for (const { key } of STORED_METRICS) {
+    const v: unknown = m[key];
+    if (isNum(v)) result[key] = v;
+  }
+  return result;
+}
+
+/** 設定逐項檢查型別，不對的用預設值（設定值錯誤會讓計時器、槓片計算算出錯的結果） */
+function normalizeSettings(v: unknown): Settings {
+  const s: Settings = { ...DEFAULT_SETTINGS, availablePlates: [...DEFAULT_SETTINGS.availablePlates] };
+  if (!isRecord(v)) return s;
+  const positive = (x: unknown): x is number => isNum(x) && x > 0;
+  if (positive(v.defaultRestSeconds)) s.defaultRestSeconds = v.defaultRestSeconds;
+  if (isNum(v.barWeight) && v.barWeight >= 0) s.barWeight = v.barWeight;
+  if (Array.isArray(v.availablePlates)) {
+    const plates = v.availablePlates.filter(positive);
+    if (plates.length > 0) s.availablePlates = plates;
+  }
+  if (typeof v.timerSound === 'boolean') s.timerSound = v.timerSound;
+  if (typeof v.timerVibrate === 'boolean') s.timerVibrate = v.timerVibrate;
+  if (isNum(v.lastBackupAt)) s.lastBackupAt = v.lastBackupAt;
+  if (positive(v.stretchSeconds)) s.stretchSeconds = v.stretchSeconds;
+  if (typeof v.stretchRoller === 'boolean') s.stretchRoller = v.stretchRoller;
+  return s;
+}
+
+/**
+ * 進行中的草稿：結構不對就捨棄。
+ * 草稿壞掉時紀錄頁和訓練畫面都會出錯，捨棄一份草稿比整個 App 打不開好。
+ */
+function normalizeDraft(v: unknown): WorkoutDraft | null {
+  if (!isRecord(v) || !isStr(v.id) || typeof v.date !== 'string' || !DATE_RE.test(v.date)) return null;
+  if (!Array.isArray(v.exercises)) return null;
+  const str = (x: unknown) => (typeof x === 'string' ? x : '');
+  const exercises: DraftExercise[] = [];
+  for (const ex of v.exercises) {
+    if (!isRecord(ex) || !isStr(ex.key) || !isStr(ex.exerciseId) || !Array.isArray(ex.sets)) return null;
+    const sets: DraftSet[] = [];
+    for (const s of ex.sets) {
+      if (!isRecord(s)) return null;
+      sets.push({
+        weight: str(s.weight),
+        reps: str(s.reps),
+        rpe: str(s.rpe),
+        isWarmup: s.isWarmup === true,
+        completed: s.completed === true,
+      });
+    }
+    exercises.push({ key: ex.key, exerciseId: ex.exerciseId, sets });
+  }
+  const draft: WorkoutDraft = {
+    id: v.id,
+    date: v.date,
+    exercises,
+    note: str(v.note),
+    startedAt: isNum(v.startedAt) ? v.startedAt : Date.now(),
+  };
+  if (isStr(v.editingSessionId)) draft.editingSessionId = v.editingSessionId;
+  return draft;
+}
+
 /**
  * 補齊缺少的欄位，確保結構完整。
- * 陣列欄位若型別錯誤就視為空陣列；設定缺的欄位用預設值補上。
+ * 陣列欄位若型別錯誤就視為空陣列；設定缺少或型別錯誤的欄位用預設值補上。
  */
 function normalize(data: Record<string, unknown>): AppData {
-  const empty = createEmptyData();
   const arr = <T>(v: unknown, fallback: T[]): T[] => (Array.isArray(v) ? (v as T[]) : fallback);
-  const settings = isRecord(data.settings) ? (data.settings as Partial<Settings>) : {};
 
   return {
     version: CURRENT_DATA_VERSION,
@@ -137,8 +213,8 @@ function normalize(data: Record<string, unknown>): AppData {
       createdAt: isNum(s.createdAt) ? s.createdAt : 0,
       updatedAt: isNum(s.updatedAt) ? s.updatedAt : 0,
     })),
-    bodyMetrics: arr<unknown>(data.bodyMetrics, []).filter(isValidBodyMetric),
-    settings: { ...empty.settings, ...settings },
-    activeDraft: isRecord(data.activeDraft) ? (data.activeDraft as unknown as WorkoutDraft) : null,
+    bodyMetrics: arr<unknown>(data.bodyMetrics, []).filter(isValidBodyMetric).map(withValidMetrics),
+    settings: normalizeSettings(data.settings),
+    activeDraft: normalizeDraft(data.activeDraft),
   };
 }

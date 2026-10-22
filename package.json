@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "5.1.0",
@@ -16,7 +18,9 @@
   },
   "devDependencies": {
     "@preact/preset-vite": "2.9.1",
+    "@types/node": "22.18.13",
     "typescript": "5.6.3",
-    "vite": "5.4.10"
+    "vite": "5.4.10",
+    "vitest": "2.1.9"
   }
 }

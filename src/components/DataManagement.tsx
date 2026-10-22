@@ -22,25 +22,26 @@ export function DataManagement() {
   const repo = useRepository();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const data = repo.exportData();
+  const data = repo.getData();
   const lastBackupAt = data.settings.lastBackupAt;
   const daysSinceBackup = lastBackupAt ? Math.floor((Date.now() - lastBackupAt) / 864e5) : null;
   const hasData = data.sessions.length + data.bodyMetrics.length + data.customExercises.length > 0;
 
   const exportJson = async () => {
-    downloadFile(datedName('fitlog-backup', 'json'), toBackupJson(repo.exportData()), 'application/json');
+    const saved = await downloadFile(datedName('fitlog-backup', 'json'), toBackupJson(repo.exportData()), 'application/json');
+    if (!saved) return; // 在分享選單按了取消，不算備份過
     await repo.updateSettings({ lastBackupAt: Date.now() }).catch(() => undefined);
     showToast('已下載備份檔');
   };
 
   const exportSessionsCsv = () => {
     if (data.sessions.length === 0) return showToast('還沒有訓練紀錄');
-    downloadFile(datedName('fitlog-workouts', 'csv'), sessionsToCsv(data.sessions, (id) => repo.getExercise(id)), 'text/csv');
+    void downloadFile(datedName('fitlog-workouts', 'csv'), sessionsToCsv(data.sessions, (id) => repo.getExercise(id)), 'text/csv');
   };
 
   const exportBodyCsv = () => {
     if (data.bodyMetrics.length === 0) return showToast('還沒有體態紀錄');
-    downloadFile(datedName('fitlog-body', 'csv'), bodyMetricsToCsv(data.bodyMetrics), 'text/csv');
+    void downloadFile(datedName('fitlog-body', 'csv'), bodyMetricsToCsv(data.bodyMetrics), 'text/csv');
   };
 
   /** 選好檔案後：讀取 → 檢查格式 → 顯示內容並確認 → 取代 */
