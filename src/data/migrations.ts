@@ -2,6 +2,7 @@ import { STORED_METRICS } from '../lib/bodyMetrics';
 import { DEFAULT_MUSCLES, EQUIPMENT_LABELS, MUSCLE_LABELS } from './catalog';
 import {
   BODY_PARTS,
+  type ActivityLevel,
   type BodyPart,
   CURRENT_DATA_VERSION,
   type AppData,
@@ -10,8 +11,13 @@ import {
   type DraftSet,
   type Equipment,
   type Exercise,
+  type FoodEntry,
+  MEAL_TYPES,
   type Muscle,
+  type NutritionGoal,
+  type NutritionProfile,
   type Settings,
+  type Sex,
   type WorkoutDraft,
   type WorkoutSession,
 } from '../types/models';
@@ -34,6 +40,8 @@ export function createEmptyData(): AppData {
     bodyMetrics: [],
     settings: { ...DEFAULT_SETTINGS, availablePlates: [...DEFAULT_SETTINGS.availablePlates] },
     activeDraft: null,
+    nutritionProfile: null,
+    foodEntries: [],
   };
 }
 
@@ -47,6 +55,8 @@ const MIGRATIONS: Record<number, Migration> = {
   1: (d) => ({ ...d, version: 2, activeDraft: null }),
   // v2 → v3：動作加上器材與肌群（自訂動作依部位給預設值，normalize 會補齊）
   2: (d) => ({ ...d, version: 3 }),
+  // v3 → v4：新增飲食（TDEE 個人資料、飲食紀錄）
+  3: (d) => ({ ...d, version: 4, nutritionProfile: null, foodEntries: [] }),
 };
 
 export class MigrationError extends Error {
@@ -143,6 +153,41 @@ function withValidMetrics(m: BodyMetric): BodyMetric {
   return result;
 }
 
+const SEXES: readonly Sex[] = ['male', 'female'];
+const ACTIVITY_LEVELS: readonly ActivityLevel[] = ['sedentary', 'light', 'moderate', 'active', 'veryActive'];
+const GOALS: readonly NutritionGoal[] = ['cut', 'maintain', 'bulk'];
+const oneOf = <T extends string>(list: readonly T[], v: unknown): v is T => (list as readonly unknown[]).includes(v);
+
+/** TDEE 個人資料：任何一項不合理就當作沒設定，讓使用者重新填 */
+function normalizeProfile(v: unknown): NutritionProfile | null {
+  if (!isRecord(v)) return null;
+  const { sex, birthYear, heightCm, activity, goal } = v;
+  if (!oneOf(SEXES, sex) || !oneOf(ACTIVITY_LEVELS, activity) || !oneOf(GOALS, goal)) return null;
+  if (!isNum(birthYear) || birthYear < 1900 || birthYear > 2100) return null;
+  if (!isNum(heightCm) || heightCm < 100 || heightCm > 250) return null;
+  return { sex, birthYear, heightCm, activity, goal };
+}
+
+/** 飲食紀錄：日期、名稱、熱量必須有效；營養素與照片只留有效值 */
+function normalizeFoodEntry(v: unknown): FoodEntry | null {
+  if (!isRecord(v) || !isStr(v.id) || typeof v.date !== 'string' || !DATE_RE.test(v.date)) return null;
+  if (!isStr(v.name) || !isNum(v.kcal) || v.kcal < 0) return null;
+  const entry: FoodEntry = {
+    id: v.id,
+    date: v.date,
+    meal: oneOf(MEAL_TYPES, v.meal) ? v.meal : 'snack',
+    name: v.name,
+    kcal: v.kcal,
+    createdAt: isNum(v.createdAt) ? v.createdAt : 0,
+  };
+  for (const key of ['protein', 'carbs', 'fat'] as const) {
+    const g = v[key];
+    if (isNum(g) && g >= 0) entry[key] = g;
+  }
+  if (isStr(v.photoId)) entry.photoId = v.photoId;
+  return entry;
+}
+
 /** 設定逐項檢查型別，不對的用預設值（設定值錯誤會讓計時器、槓片計算算出錯的結果） */
 function normalizeSettings(v: unknown): Settings {
   const s: Settings = { ...DEFAULT_SETTINGS, availablePlates: [...DEFAULT_SETTINGS.availablePlates] };
@@ -216,5 +261,7 @@ function normalize(data: Record<string, unknown>): AppData {
     bodyMetrics: arr<unknown>(data.bodyMetrics, []).filter(isValidBodyMetric).map(withValidMetrics),
     settings: normalizeSettings(data.settings),
     activeDraft: normalizeDraft(data.activeDraft),
+    nutritionProfile: normalizeProfile(data.nutritionProfile),
+    foodEntries: arr<unknown>(data.foodEntries, []).map(normalizeFoodEntry).filter((e): e is FoodEntry => e !== null),
   };
 }

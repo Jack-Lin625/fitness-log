@@ -1,8 +1,8 @@
 /**
  * 匯出：JSON 完整備份、CSV（可用 Excel／Google 試算表開啟）
  */
-import type { AppData, BodyMetric, Exercise, WorkoutSession } from '../types/models';
-import { BODY_PART_LABELS } from '../types/models';
+import type { AppData, BodyMetric, Exercise, FoodEntry, WorkoutSession } from '../types/models';
+import { BODY_PART_LABELS, MEAL_LABELS, MEAL_TYPES } from '../types/models';
 import { STORED_METRICS } from './bodyMetrics';
 import { chronological } from './records';
 import { setVolume } from './volume';
@@ -63,6 +63,17 @@ export function bodyMetricsToCsv(metrics: BodyMetric[]): string {
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((m) => [m.date, ...STORED_METRICS.map((d) => m[d.key])]);
   return toCsv([header, ...rows]);
+}
+
+/** 飲食紀錄 CSV：一筆一列 */
+export function foodEntriesToCsv(entries: FoodEntry[]): string {
+  const rows = [...entries]
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || MEAL_TYPES.indexOf(a.meal) - MEAL_TYPES.indexOf(b.meal) || a.createdAt - b.createdAt,
+    )
+    .map((e) => [e.date, MEAL_LABELS[e.meal], e.name, e.kcal, e.protein, e.carbs, e.fat]);
+  return toCsv([['日期', '餐別', '名稱', '熱量(kcal)', '蛋白質(g)', '碳水(g)', '脂肪(g)'], ...rows]);
 }
 
 /** iPhone 從主畫面開啟（獨立視窗）時，navigator.standalone 為 true；其他瀏覽器沒有這個屬性 */

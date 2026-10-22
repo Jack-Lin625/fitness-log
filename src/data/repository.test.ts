@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installMemoryStorage } from '../test/memoryStorage';
-import type { WorkoutSession } from '../types/models';
+import type { FoodEntry, WorkoutSession } from '../types/models';
 import { LocalStorageAdapter } from './localStorageAdapter';
 import { Repository } from './repository';
 
@@ -105,6 +105,55 @@ describe('Repository', () => {
       await repo.finishDraft(workout('d', '2026-10-01', 1, 60));
       expect(repo.getDraft()).toBeNull();
       expect(repo.getSession('d')).toBeDefined();
+    });
+  });
+
+  describe('飲食', () => {
+    const food = (id: string, date: string, name: string, kcal: number, createdAt: number): FoodEntry => ({
+      id,
+      date,
+      meal: 'lunch',
+      name,
+      kcal,
+      createdAt,
+    });
+
+    it('依日期取紀錄（依建立時間排序）、每日總熱量', async () => {
+      const repo = await freshRepo();
+      await repo.saveFoodEntry(food('b', '2026-10-20', '晚餐', 700, 2));
+      await repo.saveFoodEntry(food('a', '2026-10-20', '午餐', 600, 1));
+      await repo.saveFoodEntry(food('c', '2026-10-21', '早餐', 400, 3));
+      expect(repo.getFoodEntries('2026-10-20').map((e) => e.id)).toEqual(['a', 'b']);
+      expect(Object.fromEntries(repo.getDailyKcal())).toEqual({ '2026-10-20': 1300, '2026-10-21': 400 });
+    });
+
+    it('同 id 再存是修改；刪除後消失', async () => {
+      const repo = await freshRepo();
+      await repo.saveFoodEntry(food('a', '2026-10-20', '午餐', 600, 1));
+      await repo.saveFoodEntry({ ...food('a', '2026-10-20', '午餐', 650, 1), protein: 40 });
+      expect(repo.getFoodEntries('2026-10-20')).toEqual([{ ...food('a', '2026-10-20', '午餐', 650, 1), protein: 40 }]);
+      await repo.deleteFoodEntry('a');
+      expect(repo.getFoodEntry('a')).toBeUndefined();
+    });
+
+    it('最近吃過的食物：同名只留最新一筆，新到舊', async () => {
+      const repo = await freshRepo();
+      await repo.saveFoodEntry(food('1', '2026-10-18', '雞胸便當', 600, 1));
+      await repo.saveFoodEntry(food('2', '2026-10-19', '蛋餅', 300, 2));
+      await repo.saveFoodEntry(food('3', '2026-10-20', '雞胸便當', 650, 3));
+      expect(repo.getRecentFoods(5).map((e) => [e.name, e.kcal])).toEqual([
+        ['雞胸便當', 650],
+        ['蛋餅', 300],
+      ]);
+      expect(repo.getRecentFoods(1)).toHaveLength(1);
+    });
+
+    it('TDEE 個人資料存取', async () => {
+      const repo = await freshRepo();
+      expect(repo.getNutritionProfile()).toBeNull();
+      const profile = { sex: 'male', birthYear: 1996, heightCm: 175, activity: 'moderate', goal: 'cut' } as const;
+      await repo.saveNutritionProfile(profile);
+      expect((await freshRepo()).getNutritionProfile()).toEqual(profile);
     });
   });
 

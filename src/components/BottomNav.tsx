@@ -41,6 +41,16 @@ const ITEMS: NavItem[] = [
     ),
   },
   {
+    route: 'diet',
+    label: '飲食',
+    icon: icon(
+      <>
+        <path d="M3.5 11.5h17a8.5 8.5 0 0 1-17 0z" />
+        <path d="M8 20.5h8M9.5 4.5c-1 1.2 1 2.3 0 3.5M14.5 4.5c-1 1.2 1 2.3 0 3.5" />
+      </>,
+    ),
+  },
+  {
     route: 'tools',
     label: '工具',
     icon: icon(

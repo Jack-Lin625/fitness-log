@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 
-/** 底部導覽的五個主頁 */
-export type Route = 'log' | 'charts' | 'body' | 'tools' | 'settings';
+/** 底部導覽的主頁 */
+export type Route = 'log' | 'charts' | 'body' | 'diet' | 'tools' | 'settings';
 
-const ROUTES: readonly Route[] = ['log', 'charts', 'body', 'tools', 'settings'];
+const ROUTES: readonly Route[] = ['log', 'charts', 'body', 'diet', 'tools', 'settings'];
 const DEFAULT_ROUTE: Route = 'log';
 
 export interface RouteState {

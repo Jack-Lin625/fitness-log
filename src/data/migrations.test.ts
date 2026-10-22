@@ -123,3 +123,37 @@ describe('migrate：設定、自訂動作、體態的型別檢查', () => {
     expect(m).toEqual({ id: 'm1', date: '2026-10-01', weight: 70.5, arm: 35 });
   });
 });
+
+describe('migrate：飲食（v4）', () => {
+  it('v3 資料升級後有空的飲食欄位', () => {
+    const data = migrate({ version: 3, customExercises: [], sessions: [], bodyMetrics: [], settings: {}, activeDraft: null });
+    expect(data.version).toBe(4);
+    expect(data.nutritionProfile).toBeNull();
+    expect(data.foodEntries).toEqual([]);
+  });
+
+  it('TDEE 個人資料：正確的保留，任何一項不合理就當作沒設定', () => {
+    const good = { sex: 'female', birthYear: 1995, heightCm: 162, activity: 'light', goal: 'cut' };
+    expect(migrate({ ...base, nutritionProfile: good }).nutritionProfile).toEqual(good);
+    for (const bad of [{ ...good, sex: 'x' }, { ...good, heightCm: 20 }, { ...good, birthYear: '1995' }, { ...good, goal: 'bulking' }, 'x']) {
+      expect(migrate({ ...base, nutritionProfile: bad }).nutritionProfile).toBeNull();
+    }
+  });
+
+  it('飲食紀錄：無效的略過，未知餐別改為點心，營養素只留有效數字', () => {
+    const { foodEntries } = migrate({
+      ...base,
+      foodEntries: [
+        { id: 'a', date: '2026-10-20', meal: 'lunch', name: '雞胸便當', kcal: 650, protein: 45, carbs: 'x', fat: -1, photoId: 'p1', createdAt: 5 },
+        { id: 'b', date: '2026-10-20', meal: 'brunch', name: '蛋餅', kcal: 300 },
+        { id: 'c', date: '2026-10-20', name: '沒有熱量' },
+        { id: 'd', date: 'bad', name: '日期錯誤', kcal: 100 },
+        { id: 'e', date: '2026-10-20', name: '負熱量', kcal: -5 },
+      ],
+    });
+    expect(foodEntries).toEqual([
+      { id: 'a', date: '2026-10-20', meal: 'lunch', name: '雞胸便當', kcal: 650, protein: 45, photoId: 'p1', createdAt: 5 },
+      { id: 'b', date: '2026-10-20', meal: 'snack', name: '蛋餅', kcal: 300, createdAt: 0 },
+    ]);
+  });
+});

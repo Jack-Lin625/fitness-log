@@ -2,6 +2,8 @@ import type {
   AppData,
   BodyMetric,
   Exercise,
+  FoodEntry,
+  NutritionProfile,
   Settings,
   WorkoutDraft,
   WorkoutSession,
@@ -246,6 +248,56 @@ export class Repository {
 
   async deleteBodyMetric(id: string): Promise<void> {
     await this.commit({ ...this.data, bodyMetrics: this.data.bodyMetrics.filter((m) => m.id !== id) });
+  }
+
+  // ───────── 飲食 ─────────
+
+  getNutritionProfile(): NutritionProfile | null {
+    return this.data.nutritionProfile;
+  }
+
+  async saveNutritionProfile(profile: NutritionProfile): Promise<void> {
+    await this.commit({ ...this.data, nutritionProfile: profile });
+  }
+
+  /** 某一天的飲食紀錄，依建立時間排序 */
+  getFoodEntries(date: string): FoodEntry[] {
+    return this.data.foodEntries.filter((e) => e.date === date).sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  getFoodEntry(id: string): FoodEntry | undefined {
+    return this.data.foodEntries.find((e) => e.id === id);
+  }
+
+  /** 每天的總熱量（只含有紀錄的日子） */
+  getDailyKcal(): Map<string, number> {
+    const totals = new Map<string, number>();
+    for (const e of this.data.foodEntries) totals.set(e.date, (totals.get(e.date) ?? 0) + e.kcal);
+    return totals;
+  }
+
+  /** 最近吃過的食物（同名只留最新一筆），用來一鍵帶入 */
+  getRecentFoods(limit: number): FoodEntry[] {
+    const seen = new Set<string>();
+    const result: FoodEntry[] = [];
+    const newest = [...this.data.foodEntries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+    for (const e of newest) {
+      if (seen.has(e.name)) continue;
+      seen.add(e.name);
+      result.push(e);
+      if (result.length >= limit) break;
+    }
+    return result;
+  }
+
+  /** 新增或更新一筆飲食紀錄（依 id 判斷） */
+  async saveFoodEntry(entry: FoodEntry): Promise<void> {
+    const others = this.data.foodEntries.filter((e) => e.id !== entry.id);
+    await this.commit({ ...this.data, foodEntries: [...others, entry] });
+  }
+
+  async deleteFoodEntry(id: string): Promise<void> {
+    await this.commit({ ...this.data, foodEntries: this.data.foodEntries.filter((e) => e.id !== id) });
   }
 
   // ───────── 設定 ─────────

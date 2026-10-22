@@ -307,7 +307,7 @@ textarea {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   height: calc(var(--nav-height) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
   background: var(--surface);
@@ -2495,4 +2495,250 @@ body:has(.rest-bar) .page-editor {
   color: var(--warn-ink);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
+}
+
+/* ───────── 飲食 ───────── */
+
+.date-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 今日熱量進度條；超過目標變成 PR 紅 */
+.kcal-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.kcal-bar > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.3s ease-out;
+}
+.kcal-bar.is-over > div {
+  background: var(--pr);
+}
+
+.macro-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.macro-row li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.macro-row .num {
+  font-size: 22px;
+}
+
+.meal-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.food-row {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.food-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.food-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.food-kcal {
+  white-space: nowrap;
+  color: var(--muted);
+}
+.food-kcal .num {
+  font-size: 22px;
+  color: var(--ink);
+}
+
+.food-thumb {
+  display: block;
+  flex: none;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.food-thumb-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.food-thumb-empty svg {
+  width: 60%;
+  height: 60%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+/* 新增紀錄的照片區 */
+.food-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.food-photo-img {
+  width: 100%;
+  max-height: 46vh;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.food-photo-add {
+  min-height: 120px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.food-photo-add svg {
+  width: 36px;
+  height: 36px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.metric-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.big-input-sm {
+  height: 56px;
+  padding: 0 8px;
+  font-size: 26px;
+}
+
+/* 單選清單（活動量、目標）：標題＋說明 */
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.option-row {
+  min-height: var(--tap);
+  padding: 10px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+.option-row.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.option-title {
+  font-weight: 600;
+}
+.option-detail {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kv-plain {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+/* 近 7 天：日期、長條、熱量；直線是目標 */
+.week-row {
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 0;
+  background: none;
+  display: grid;
+  grid-template-columns: 7.5em 1fr 4em;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.week-row.is-selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.week-date {
+  font-size: 14px;
+}
+.week-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.week-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.week-bar > span.is-over {
+  background: var(--pr);
+}
+.week-bar > i {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--ink);
+}
+.week-kcal {
+  text-align: right;
+}
+
+.button-trio {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }

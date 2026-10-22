@@ -135,6 +135,60 @@ export interface Settings {
 }
 
 /*
+ * ───────── 飲食 ─────────
+ */
+
+export type Sex = 'male' | 'female';
+
+/** 活動量（含訓練），用來把基礎代謝換算成 TDEE */
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'veryActive';
+
+/** 飲食目標 */
+export type NutritionGoal = 'cut' | 'maintain' | 'bulk';
+
+/** 計算 TDEE 需要的個人資料；體重、體脂率取自體態紀錄 */
+export interface NutritionProfile {
+  sex: Sex;
+  /** 出生年（西元），用來算年齡，不必每年更新 */
+  birthYear: number;
+  /** 身高 cm */
+  heightCm: number;
+  activity: ActivityLevel;
+  goal: NutritionGoal;
+}
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+/** 餐別顯示順序 */
+export const MEAL_TYPES: readonly MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+export const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: '早餐',
+  lunch: '午餐',
+  dinner: '晚餐',
+  snack: '點心',
+};
+
+/** 一筆飲食紀錄 */
+export interface FoodEntry {
+  id: string;
+  /** 本地日期 'YYYY-MM-DD' */
+  date: string;
+  meal: MealType;
+  /** 食物名稱，如「雞胸便當」 */
+  name: string;
+  /** 熱量 kcal */
+  kcal: number;
+  /** 三大營養素（公克），選填 */
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  /** 照片在 IndexedDB 裡的 id；照片本身不存在 localStorage（太大） */
+  photoId?: string;
+  createdAt: number;
+}
+
+/*
  * ───────── 訓練草稿 ─────────
  * 訓練進行中的暫存資料。欄位用字串而非數字，是為了保留使用者正在輸入的內容
  * （例如輸入到一半的「82.」），完成訓練時才轉換成 WorkoutSession。
@@ -170,11 +224,11 @@ export interface WorkoutDraft {
 }
 
 /** 目前資料格式版本 */
-export const CURRENT_DATA_VERSION = 3;
+export const CURRENT_DATA_VERSION = 4;
 
 /**
  * localStorage 中實際儲存的根物件。
- * 未來加入營養／飲食功能時，在這裡新增欄位（如 meals、foods）並遞增版本號。
+ * 新增欄位時遞增版本號，並在 data/migrations.ts 加上升級函式。
  */
 export interface AppData {
   version: number;
@@ -185,4 +239,8 @@ export interface AppData {
   settings: Settings;
   /** 進行中的訓練草稿（v2 新增），關掉網頁再回來也不會遺失 */
   activeDraft: WorkoutDraft | null;
+  /** 計算 TDEE 的個人資料（v4 新增），還沒設定為 null */
+  nutritionProfile: NutritionProfile | null;
+  /** 飲食紀錄（v4 新增） */
+  foodEntries: FoodEntry[];
 }

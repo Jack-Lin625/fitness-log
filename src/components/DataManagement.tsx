@@ -1,17 +1,20 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { confirmDialog } from './Dialog';
 import { showToast } from './Toast';
 import { migrate } from '../data/migrations';
+import { clearPhotos, photoUsage } from '../data/photoStore';
 import { useRepository } from '../hooks/useRepository';
 import { errorMessage } from '../lib/errors';
 import {
   bodyMetricsToCsv,
   datedName,
   downloadFile,
+  foodEntriesToCsv,
   readFileText,
   sessionsToCsv,
   toBackupJson,
 } from '../lib/exporters';
+import { exportPhotosJson, formatBytes, importPhotosJson } from '../lib/photos';
 import { stopRest } from '../lib/restTimer';
 
 /** 超過這麼多天沒備份就提醒 */
@@ -25,7 +28,8 @@ export function DataManagement() {
   const data = repo.getData();
   const lastBackupAt = data.settings.lastBackupAt;
   const daysSinceBackup = lastBackupAt ? Math.floor((Date.now() - lastBackupAt) / 864e5) : null;
-  const hasData = data.sessions.length + data.bodyMetrics.length + data.customExercises.length > 0;
+  const hasData =
+    data.sessions.length + data.bodyMetrics.length + data.customExercises.length + data.foodEntries.length > 0;
 
   const exportJson = async () => {
     const saved = await downloadFile(datedName('fitlog-backup', 'json'), toBackupJson(repo.exportData()), 'application/json');
@@ -42,6 +46,11 @@ export function DataManagement() {
   const exportBodyCsv = () => {
     if (data.bodyMetrics.length === 0) return showToast('還沒有體態紀錄');
     void downloadFile(datedName('fitlog-body', 'csv'), bodyMetricsToCsv(data.bodyMetrics), 'text/csv');
+  };
+
+  const exportFoodCsv = () => {
+    if (data.foodEntries.length === 0) return showToast('還沒有飲食紀錄');
+    void downloadFile(datedName('fitlog-food', 'csv'), foodEntriesToCsv(data.foodEntries), 'text/csv');
   };
 
   /** 選好檔案後：讀取 → 檢查格式 → 顯示內容並確認 → 取代 */
@@ -62,8 +71,9 @@ export function DataManagement() {
         title: '用備份取代目前的資料？',
         body:
           `備份內容：訓練 ${incoming.sessions.length} 筆、體態 ${incoming.bodyMetrics.length} 筆、` +
-          `自訂動作 ${incoming.customExercises.length} 個。` +
-          `目前 App 裡的資料會被取代（訓練 ${data.sessions.length} 筆、體態 ${data.bodyMetrics.length} 筆）。`,
+          `飲食 ${incoming.foodEntries.length} 筆、自訂動作 ${incoming.customExercises.length} 個。` +
+          `目前 App 裡的資料會被取代（訓練 ${data.sessions.length} 筆、體態 ${data.bodyMetrics.length} 筆、` +
+          `飲食 ${data.foodEntries.length} 筆）。飲食照片另外備份，不受影響。`,
         confirmText: '取代',
         danger: true,
       });
@@ -119,18 +129,93 @@ export function DataManagement() {
 
       <section class="section">
         <h2 class="section-title">匯出成試算表（CSV）</h2>
-        <div class="button-pair">
+        <div class="button-trio">
           <button type="button" class="btn btn-secondary" onClick={exportSessionsCsv}>
-            訓練紀錄
+            訓練
           </button>
           <button type="button" class="btn btn-secondary" onClick={exportBodyCsv}>
-            體態紀錄
+            體態
+          </button>
+          <button type="button" class="btn btn-secondary" onClick={exportFoodCsv}>
+            飲食
           </button>
         </div>
         <p class="muted small-text">可以用 Excel 或 Google 試算表開啟。CSV 只能匯出，不能匯入回 App。</p>
       </section>
 
+      <PhotoBackupSection />
     </>
+  );
+}
+
+/**
+ * 飲食照片的備份：照片很大，不放進「完整備份」，另外下載成一個檔案。
+ * 換手機時先匯入完整備份，再匯入照片備份。
+ */
+function PhotoBackupSection() {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [usage, setUsage] = useState<{ count: number; bytes: number } | null>(null);
+  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
+
+  const refresh = () =>
+    photoUsage()
+      .then(setUsage)
+      .catch(() => setUsage(null));
+  useEffect(() => void refresh(), []);
+
+  const exportPhotos = async () => {
+    setBusy('export');
+    try {
+      const { json, count } = await exportPhotosJson();
+      if (count === 0) return showToast('還沒有飲食照片');
+      if (await downloadFile(datedName('fitlog-photos', 'json'), json, 'application/json')) {
+        showToast(`已下載 ${count} 張照片`);
+      }
+    } catch (err) {
+      showToast(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const importPhotos = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy('import');
+    try {
+      const count = await importPhotosJson(await readFileText(file));
+      showToast(`已匯入 ${count} 張照片`);
+      void refresh();
+    } catch (err) {
+      showToast(errorMessage(err), 4000);
+    } finally {
+      setBusy(null);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <section class="section">
+      <h2 class="section-title">飲食照片</h2>
+      <p class="muted small-text">
+        {usage && (usage.count === 0 ? '目前沒有照片。' : `目前 ${usage.count} 張，約 ${formatBytes(usage.bytes)}。`)}
+        照片不在「完整備份」裡，換手機時請另外下載照片備份，在新手機先匯入完整備份、再匯入照片。
+      </p>
+      <div class="button-pair">
+        <button type="button" class="btn btn-secondary" disabled={busy !== null} onClick={exportPhotos}>
+          {busy === 'export' ? '打包中…' : '下載所有照片'}
+        </button>
+        <button type="button" class="btn btn-secondary" disabled={busy !== null} onClick={() => fileRef.current?.click()}>
+          {busy === 'import' ? '匯入中…' : '匯入照片備份'}
+        </button>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={(e) => void importPhotos(e.currentTarget.files?.[0])}
+      />
+    </section>
   );
 }
 
@@ -141,7 +226,7 @@ export function ClearDataSection() {
   const clearAll = async () => {
     const first = await confirmDialog({
       title: '清除所有資料？',
-      body: '訓練紀錄、體態紀錄、自訂動作和設定都會刪除。建議先下載備份。',
+      body: '訓練、體態、飲食紀錄與照片、自訂動作和設定都會刪除。建議先下載備份。',
       confirmText: '繼續',
       danger: true,
     });
@@ -156,6 +241,7 @@ export function ClearDataSection() {
     if (!second) return;
     try {
       await repo.clearAll();
+      await clearPhotos().catch(() => undefined);
       stopRest();
       showToast('已清除所有資料');
     } catch (err) {

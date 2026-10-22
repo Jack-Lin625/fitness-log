@@ -155,6 +155,10 @@ export function SettingsPage() {
           <dd>
             <span class="num">{data.bodyMetrics.length}</span> 筆
           </dd>
+          <dt>飲食紀錄</dt>
+          <dd>
+            <span class="num">{data.foodEntries.length}</span> 筆
+          </dd>
           <dt>自訂動作</dt>
           <dd>
             <span class="num">{data.customExercises.filter((e) => !e.archived).length}</span> 個

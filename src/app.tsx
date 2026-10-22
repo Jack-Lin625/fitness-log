@@ -7,6 +7,7 @@ import { ToastHost } from './components/Toast';
 import { useHashRoute, type Route } from './hooks/useHashRoute';
 import { BodyPage } from './pages/BodyPage';
 import { ChartsPage } from './pages/ChartsPage';
+import { DietPage } from './pages/DietPage';
 import { LogPage } from './pages/LogPage';
 import { SessionEditorRoute } from './pages/SessionEditor';
 import { SessionView } from './pages/SessionView';
@@ -17,6 +18,7 @@ import { ToolsPage } from './pages/ToolsPage';
 const PAGES: Record<Exclude<Route, 'tools' | 'charts'>, FunctionComponent> = {
   log: LogPage,
   body: BodyPage,
+  diet: DietPage,
   settings: SettingsPage,
 };
 
