@@ -97,6 +97,7 @@ export function draftFromTemplate(
     date: todayString(),
     note: '',
     startedAt: Date.now(),
+    templateId: template.id,
     exercises: template.exercises.map((ex) => {
       const fill = !hasHistory(ex.exerciseId);
       return {
@@ -180,6 +181,9 @@ export function draftToSession(draft: WorkoutDraft, existing?: WorkoutSession, u
   };
   const note = draft.note.trim();
   if (note) session.note = note;
+  // 修改舊紀錄時保留原本的範本；新的訓練用草稿記下的範本
+  const templateId = draft.editingSessionId ? existing?.templateId : draft.templateId;
+  if (templateId) session.templateId = templateId;
 
   if (draft.editingSessionId) {
     if (existing?.durationSec !== undefined) session.durationSec = existing.durationSec;

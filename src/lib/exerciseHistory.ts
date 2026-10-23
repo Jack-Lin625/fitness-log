@@ -2,7 +2,7 @@
  * 單一動作的完整歷史：每次做這個動作的日期、每一組、備註，以及那次是否破了當時的紀錄。
  */
 import type { WorkoutSession, WorkoutSet } from '../types/models';
-import { chronological, computeRecords, setE1rm, setRecordKinds, type RecordKind } from './records';
+import { chronological, computeRecords, setE1rm, setRecordKinds, type ExerciseRecord, type RecordKind } from './records';
 import { exerciseVolume } from './volume';
 
 export interface HistoryEntry {
@@ -31,6 +31,25 @@ function topSetOf(sets: WorkoutSet[]): WorkoutSet | null {
   return top;
 }
 
+/**
+ * 把「之後」的紀錄併進「之前」的最佳紀錄，規則和 computeRecords 一致：
+ * 只有嚴格更好才取代（同重量時次數多者勝），所以先創下的紀錄會保留。
+ */
+function mergeRecord(before: ExerciseRecord | undefined, after: ExerciseRecord | undefined): ExerciseRecord | undefined {
+  if (!before || !after) return before ?? after;
+  const merged = { ...before };
+  const bw = before.bestWeight?.set;
+  const aw = after.bestWeight?.set;
+  if (aw && (!bw || aw.weight > bw.weight + EPSILON || (Math.abs(aw.weight - bw.weight) < EPSILON && aw.reps > bw.reps))) {
+    merged.bestWeight = after.bestWeight;
+  }
+  if (after.bestE1rm && (!before.bestE1rm || after.bestE1rm.value > before.bestE1rm.value + EPSILON)) merged.bestE1rm = after.bestE1rm;
+  if (after.bestReps && (!before.bestReps || after.bestReps.set.reps > before.bestReps.set.reps)) merged.bestReps = after.bestReps;
+  return merged;
+}
+
+const EPSILON = 1e-9;
+
 /** 某動作的所有紀錄，新到舊 */
 export function exerciseHistory(
   sessions: WorkoutSession[],
@@ -40,9 +59,9 @@ export function exerciseHistory(
   const has = (s: WorkoutSession) => s.exercises.some((e) => e.exerciseId === exerciseId && e.sets.length > 0);
   const ordered = chronological(sessions).filter(has);
   const entries: HistoryEntry[] = [];
-  ordered.forEach((session, i) => {
-    // 這次之前的最佳紀錄
-    const prior = computeRecords(ordered.slice(0, i)).get(exerciseId);
+  // 這次之前的最佳紀錄：從舊到新只掃一次，每次做完再併入（不必每次重算全部，紀錄多時才不會變慢）
+  let prior: ExerciseRecord | undefined;
+  ordered.forEach((session) => {
     // 同一次訓練可能做了兩次同一個動作（例如前後各做一次），合併計算
     const parts = session.exercises.filter((e) => e.exerciseId === exerciseId);
     const sets = parts.flatMap((e) => e.sets);
@@ -62,6 +81,7 @@ export function exerciseHistory(
     };
     if (note) entry.note = note;
     entries.push(entry);
+    prior = mergeRecord(prior, computeRecords([session]).get(exerciseId));
   });
   return entries.reverse();
 }

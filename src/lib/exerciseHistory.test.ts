@@ -40,3 +40,22 @@ describe('exerciseHistory', () => {
     expect(exerciseHistory(sessions, 'deadlift', normal)).toEqual([]);
   });
 });
+
+describe('exerciseHistory：逐次累積的紀錄和整批重算一致', () => {
+  it('隨機的紀錄序列：每次的 PR 標記等於「和這次之前的全部紀錄比較」', async () => {
+    const { computeRecords, setRecordKinds } = await import('./records');
+    // 固定種子的亂數，結果可以重現
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const list: WorkoutSession[] = Array.from({ length: 60 }, (_, i) =>
+      session(`s${i}`, `2026-0${1 + Math.floor(i / 28)}-${String((i % 28) + 1).padStart(2, '0')}`,
+        Array.from({ length: 3 }, () => ({ weight: Math.round(80 + rand() * 40) / 2.5 * 2.5, reps: 1 + Math.floor(rand() * 12) }))),
+    );
+    const entries = exerciseHistory(list, 'squat', normal).reverse();
+    entries.forEach((e, i) => {
+      const prior = computeRecords(list.slice(0, i)).get('squat');
+      const expected = new Set(e.sets.flatMap((s) => setRecordKinds(s, prior, normal)));
+      expect(new Set(e.records)).toEqual(expected);
+    });
+  });
+});
