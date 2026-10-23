@@ -49,3 +49,9 @@ export function headOn(shoulder: Vec, torsoDeg: number, tilt = 0): { neck: Vec; 
   const neck = toward(shoulder, torsoDeg, BODY.neck);
   return { neck, head: toward(neck, torsoDeg + tilt, BODY.headR) };
 }
+
+/** 向量的角度（0° 朝上、90° 朝前） */
+export const angleOf = (v: Vec): number => (Math.atan2(v.x, -v.y) * 180) / Math.PI;
+
+/** 兩點連線的角度 */
+export const angleBetween = (from: Vec, to: Vec): number => angleOf(sub(to, from));

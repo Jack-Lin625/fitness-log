@@ -8,10 +8,10 @@ import { BODY, type Demo, type Pose, type Vec } from './types';
 
 const ANKLE: Vec = { x: 96, y: 192 };
 /** 腳掌中心：槓鈴與重心應該落在這條線上 */
-const MIDFOOT = ANKLE.x + 5;
+export const MIDFOOT = ANKLE.x + 5;
 const FLOOR = 198;
 /** 畫面上槓片的半徑（和 Mannequin 的 mq-plate 一致） */
-const PLATE_R = 15;
+export const PLATE_R = 15;
 const ARM = BODY.upperArm + BODY.forearm;
 
 const midfootGuide = () => ({ x: MIDFOOT, label: '腳掌中心' });
@@ -31,7 +31,7 @@ function standingLegs(hip: Vec) {
  * 髖關節鉸鏈（羅馬尼亞硬舉、划船）：
  * 已知膝蓋、軀幹前傾角與手臂角度，解出讓槓鈴落在腳掌中心正上方的髖位置。
  */
-function hinge(knee: Vec, torsoDeg: number, armDeg: number) {
+export function hinge(knee: Vec, torsoDeg: number, armDeg: number) {
   const armRad = (armDeg * Math.PI) / 180;
   const torsoRad = (torsoDeg * Math.PI) / 180;
   const hipX = MIDFOOT + ARM * Math.sin(armRad) - BODY.torso * Math.sin(torsoRad);
@@ -43,7 +43,7 @@ function hinge(knee: Vec, torsoDeg: number, armDeg: number) {
 
 // ───────── 硬舉 ─────────
 
-function deadliftPose(p: number): Pose {
+export function deadliftPose(p: number): Pose {
   // 槓鈴：站直時在大腿前方，最低點槓片貼地；全程在腳掌中心正上方
   const bar = { x: MIDFOOT, y: lerp(96, FLOOR - PLATE_R, p) };
   // 手臂垂直握槓，最低點時肩膀略在槓的前方

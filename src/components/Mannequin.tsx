@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { easeInOut, type Demo, type Pose, type Vec } from '../demos/types';
+import { easeInOut, type Demo, type FrontPose, type Pose, type Prop, type Vec } from '../demos/types';
 
 type Phase = 'down' | 'bottom' | 'up' | 'top';
 
@@ -19,18 +19,86 @@ function progressAt(demo: Demo, time: number): { p: number; phase: Phase } {
 const line = (a: Vec, b: Vec) => `M${a.x} ${a.y}L${b.x} ${b.y}`;
 const poly = (...pts: Vec[]) => pts.map((v, i) => `${i ? 'L' : 'M'}${v.x} ${v.y}`).join('');
 
-/** 畫出一個姿勢 */
-function Figure(props: { pose: Pose; guide: { x: number; label: string } | null; bench: Demo['bench'] }) {
-  const { pose, guide, bench } = props;
+/** 會被身體擋住的器材（先畫）；其他（啞鈴、握把）畫在手上 */
+const BEHIND = new Set<Prop['kind']>(['pad', 'frame', 'cable', 'pulley', 'box', 'bar']);
+
+/** 畫一個器材 */
+function PropShape({ prop }: { prop: Prop }) {
+  switch (prop.kind) {
+    case 'pad':
+      return <path d={line(prop.a, prop.b)} class="mq-pad" style={{ strokeWidth: prop.w ?? 8 }} />;
+    case 'frame':
+      return <path d={poly(...prop.pts)} class="mq-frame" />;
+    case 'cable':
+      return <path d={line(prop.a, prop.b)} class="mq-cable" />;
+    case 'pulley':
+      return <circle cx={prop.at.x} cy={prop.at.y} r="4" class="mq-pulley" />;
+    case 'bar':
+      return <circle cx={prop.at.x} cy={prop.at.y} r="3.5" class="mq-hub" />;
+    case 'box':
+      return <rect x={prop.x} y={prop.y} width={prop.w} height={prop.h} rx="2" class="mq-box" />;
+    case 'band':
+      return <path d={line(prop.a, prop.b)} class="mq-band" />;
+    case 'handle':
+      return <circle cx={prop.at.x} cy={prop.at.y} r="3" class="mq-hub" />;
+    case 'plate':
+      return (
+        <>
+          <circle cx={prop.at.x} cy={prop.at.y} r={prop.r ?? 15} class="mq-plate" />
+          <circle cx={prop.at.x} cy={prop.at.y} r="3" class="mq-hub" />
+        </>
+      );
+    case 'kettlebell':
+      return (
+        <>
+          <path d={`M${prop.at.x - 4} ${prop.at.y + 3}Q${prop.at.x} ${prop.at.y - 4} ${prop.at.x + 4} ${prop.at.y + 3}`} class="mq-kb-handle" />
+          <circle cx={prop.at.x} cy={prop.at.y + 9} r="7" class="mq-weight" />
+        </>
+      );
+    case 'dumbbell': {
+      if (prop.angle === undefined) return <circle cx={prop.at.x} cy={prop.at.y} r="6.5" class="mq-weight" />;
+      const a = (prop.angle * Math.PI) / 180;
+      const d = { x: Math.cos(a) * 8, y: Math.sin(a) * 8 };
+      const e1 = { x: prop.at.x - d.x, y: prop.at.y - d.y };
+      const e2 = { x: prop.at.x + d.x, y: prop.at.y + d.y };
+      return (
+        <>
+          <path d={line(e1, e2)} class="mq-db-handle" />
+          <path d={line(e1, e1)} class="mq-db-end" />
+          <path d={line(e2, e2)} class="mq-db-end" />
+        </>
+      );
+    }
+  }
+}
+
+function Props({ props, front }: { props: Prop[] | undefined; front: boolean }) {
+  if (!props) return null;
   return (
     <>
-      <path d="M10 198H190" class="mq-floor" />
+      {props
+        .filter((pr) => BEHIND.has(pr.kind) === front)
+        .map((pr, i) => (
+          <PropShape key={i} prop={pr} />
+        ))}
+    </>
+  );
+}
+
+/** 地面、訓練椅、輔助線、靜態器材 */
+function Scene(props: { demo: Demo; guide: { x: number; label: string } | null }) {
+  const { demo, guide } = props;
+  const bench = demo.bench;
+  return (
+    <>
+      {demo.floor !== false && <path d="M10 198H190" class="mq-floor" />}
       {bench && (
         <>
           <path d={`M${bench.x1 + 8} ${bench.y + 6}V198M${bench.x2 - 8} ${bench.y + 6}V198`} class="mq-bench-leg" />
           <rect x={bench.x1} y={bench.y} width={bench.x2 - bench.x1} height="8" rx="3" class="mq-bench" />
         </>
       )}
+      <Props props={demo.props} front={true} />
       {guide && (
         <>
           <path d={`M${guide.x} 4V198`} class="mq-guide" />
@@ -39,6 +107,26 @@ function Figure(props: { pose: Pose; guide: { x: number; label: string } | null;
           </text>
         </>
       )}
+    </>
+  );
+}
+
+/** 側面姿勢 */
+function SideFigure({ pose }: { pose: Pose }) {
+  const far = pose.far;
+  const farLeg = far && (far.knee || far.ankle);
+  const farArm = far && (far.elbow || far.hand);
+  return (
+    <>
+      <Props props={pose.props} front={true} />
+      {/* 遠側的手腳（顏色較淡，畫在身體後面） */}
+      {farLeg && (
+        <>
+          <path d={line(far.heel ?? pose.heel, far.toe ?? pose.toe)} class="mq-limb mq-foot mq-far" />
+          <path d={poly(far.ankle ?? pose.ankle, far.knee ?? pose.knee, pose.hip)} class="mq-limb mq-far" />
+        </>
+      )}
+      {farArm && <path d={poly(pose.shoulder, far.elbow ?? pose.elbow, far.hand ?? pose.hand)} class="mq-limb mq-arm mq-far" />}
       {/* 腳、腿 */}
       <path d={line(pose.heel, pose.toe)} class="mq-limb mq-foot" />
       <path d={poly(pose.ankle, pose.knee, pose.hip)} class="mq-limb" />
@@ -52,6 +140,7 @@ function Figure(props: { pose: Pose; guide: { x: number; label: string } | null;
       {[pose.knee, pose.hip, pose.shoulder, pose.elbow, pose.ankle].map((j, i) => (
         <circle key={i} cx={j.x} cy={j.y} r="2.6" class="mq-joint" />
       ))}
+      <Props props={pose.props} front={false} />
       {/* 槓鈴（側面看到槓片正面） */}
       {pose.bar && (
         <>
@@ -60,6 +149,47 @@ function Figure(props: { pose: Pose; guide: { x: number; label: string } | null;
         </>
       )}
     </>
+  );
+}
+
+/** 正面姿勢 */
+function FrontFigure({ pose }: { pose: FrontPose }) {
+  const { l, r } = pose;
+  const sides = [r, l];
+  return (
+    <>
+      <Props props={pose.props} front={true} />
+      {sides.map((s, i) => (
+        <g key={i}>
+          <path d={line(s.ankle, s.toe)} class="mq-limb mq-foot" />
+          <path d={poly(s.ankle, s.knee, s.hip)} class="mq-limb" />
+        </g>
+      ))}
+      {/* 骨盆、脊椎、肩膀 */}
+      <path d={line(r.hip, l.hip)} class="mq-limb mq-torso" />
+      <path d={line(pose.pelvis, pose.neck)} class="mq-limb mq-torso" />
+      <path d={line(r.shoulder, l.shoulder)} class="mq-limb mq-torso" />
+      <circle cx={pose.head.x} cy={pose.head.y} r="10" class="mq-head" />
+      {sides.map((s, i) => (
+        <path key={i} d={poly(s.shoulder, s.elbow, s.hand)} class="mq-limb mq-arm" />
+      ))}
+      {sides.flatMap((s, i) =>
+        [s.knee, s.hip, s.shoulder, s.elbow, s.ankle].map((j, k) => <circle key={`${i}-${k}`} cx={j.x} cy={j.y} r="2.6" class="mq-joint" />),
+      )}
+      <Props props={pose.props} front={false} />
+    </>
+  );
+}
+
+/** 某個進度的靜態畫面（不含控制列） */
+export function DemoFrame({ demo, p, guides = true }: { demo: Demo; p: number; guides?: boolean }) {
+  const view = demo.view ?? { top: -10, height: 220 };
+  const guide = guides && demo.guideX ? demo.guideX() : null;
+  return (
+    <svg viewBox={`0 ${view.top} 200 ${view.height}`}>
+      <Scene demo={demo} guide={guide} />
+      {demo.kind === 'front' ? <FrontFigure pose={demo.pose(p)} /> : <SideFigure pose={demo.pose(p)} />}
+    </svg>
   );
 }
 
@@ -99,15 +229,15 @@ export function Mannequin({ demo, label }: Props) {
 
   const p = playing ? state.p : manual;
   const phase: Phase = playing ? state.phase : manual > 0.95 ? 'bottom' : manual < 0.05 ? 'top' : 'down';
-  const pose = demo.pose(p);
-  const guide = guides && demo.guideX ? demo.guideX(pose) : null;
+  const guide = guides && demo.guideX ? demo.guideX() : null;
   const view = demo.view ?? { top: -10, height: 220 };
 
   return (
     <div class="mq">
       <div class="mq-stage">
         <svg viewBox={`0 ${view.top} 200 ${view.height}`} role="img" aria-label={`${label}動作示範動畫`}>
-          <Figure pose={pose} guide={guide} bench={demo.bench} />
+          <Scene demo={demo} guide={guide} />
+          {demo.kind === 'front' ? <FrontFigure pose={demo.pose(p)} /> : <SideFigure pose={demo.pose(p)} />}
         </svg>
         <p class="mq-caption" aria-live="polite">
           {demo.captions[phase]}
