@@ -150,6 +150,16 @@ export class Repository {
     await this.commit({ ...this.data, customExercises });
   }
 
+  /** 取消封存（復原刪除） */
+  async unarchiveCustomExercise(id: string): Promise<void> {
+    const customExercises = this.data.customExercises.map((e) => {
+      if (e.id !== id) return e;
+      const { archived: _, ...rest } = e;
+      return rest;
+    });
+    await this.commit({ ...this.data, customExercises });
+  }
+
   // ───────── 訓練 ─────────
 
   /** 新到舊排序的訓練（內部共用，不可修改） */

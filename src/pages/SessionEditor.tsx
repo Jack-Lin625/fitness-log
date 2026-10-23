@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { cloud } from '../actions/cloud';
 import { discardDraft } from '../actions/workout';
 import { EmptyState } from '../components/EmptyState';
 import { ExerciseCard } from '../components/ExerciseCard';
@@ -136,6 +137,8 @@ function SessionEditor({ initial }: { initial: WorkoutDraft }) {
   // ───────── 完成／捨棄 ─────────
 
   const finish = async () => {
+    // 雲端備份的授權過期時，趁這次按「完成」重新取得（必須在任何 await 之前），練完就會自動備份
+    cloud.refreshOnTap();
     const existing = draft.editingSessionId ? repo.getSession(draft.editingSessionId) : undefined;
     const { session, skippedSets } = draftToSession(draft, existing, repo.getWeightUnit());
     if (!session) return showToast('至少要有一組填了次數才能儲存');

@@ -1,4 +1,4 @@
-import { confirmDialog } from '../components/Dialog';
+import { deleteWithUndo } from '../actions/undo';
 import { PageHeader } from '../components/PageHeader';
 import { CloudBackupSection } from '../components/CloudBackup';
 import { ClearDataSection, DataManagement } from '../components/DataManagement';
@@ -46,21 +46,13 @@ export function SettingsPage() {
     void update({ defaultRestSeconds: next });
   };
 
-  const removeCustom = async (exercise: Exercise) => {
-    const ok = await confirmDialog({
-      title: `刪除「${exercise.name}」？`,
-      body: '以前的紀錄仍會保留這個動作，只是之後不會出現在動作清單中。',
-      confirmText: '刪除',
-      danger: true,
+  /** 刪除自訂動作 = 封存：以前的紀錄仍會保留這個動作，只是不再出現在動作清單中 */
+  const removeCustom = (exercise: Exercise) =>
+    deleteWithUndo({
+      message: `已刪除「${exercise.name}」`,
+      remove: () => repo.archiveCustomExercise(exercise.id),
+      restore: () => repo.unarchiveCustomExercise(exercise.id),
     });
-    if (!ok) return;
-    try {
-      await repo.archiveCustomExercise(exercise.id);
-      showToast(`已刪除「${exercise.name}」`);
-    } catch (err) {
-      showToast(errorMessage(err));
-    }
-  };
 
   return (
     <>

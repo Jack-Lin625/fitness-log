@@ -4,7 +4,7 @@
 import { confirmDialog } from '../components/Dialog';
 import { repo } from '../data';
 import { formatDateLabel } from '../lib/date';
-import { requestAccessToken, revokeAccess } from '../lib/googleAuth';
+import { preloadGoogleAuth, requestAccessToken, revokeAccess } from '../lib/googleAuth';
 import { downloadBackup, findBackup, uploadBackup } from '../lib/googleDrive';
 import { CloudBackup } from './cloudBackup';
 
@@ -18,6 +18,7 @@ export function cloudTimeLabel(time: number | string): string {
 export const cloud = new CloudBackup({
   repo,
   requestToken: requestAccessToken,
+  preloadAuth: preloadGoogleAuth,
   revoke: revokeAccess,
   findBackup,
   uploadBackup,

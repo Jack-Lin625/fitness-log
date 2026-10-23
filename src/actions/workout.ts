@@ -9,6 +9,7 @@ import { navigate } from '../hooks/useHashRoute';
 import { createEmptyDraft, draftFromSession, draftFromTemplate, templateFromSession } from '../lib/draft';
 import { errorMessage } from '../lib/errors';
 import { stopRest } from '../lib/restTimer';
+import { deleteWithUndo } from './undo';
 import { BODY_PART_LABELS, BODY_PARTS, type WorkoutDraft, type WorkoutSession, type WorkoutTemplate } from '../types/models';
 
 /** 已有進行中的訓練時，先確認是否捨棄 */
@@ -87,21 +88,13 @@ export async function saveAsTemplate(session: WorkoutSession): Promise<void> {
   }
 }
 
-/** 刪除菜單範本（需確認） */
+/** 刪除菜單範本（幾秒內可以復原） */
 export async function deleteTemplate(template: WorkoutTemplate): Promise<void> {
-  const ok = await confirmDialog({
-    title: `刪除範本「${template.name}」？`,
-    body: '只會刪除範本，訓練紀錄不受影響。',
-    confirmText: '刪除',
-    danger: true,
+  await deleteWithUndo({
+    message: `已刪除範本「${template.name}」`,
+    remove: () => repo.deleteTemplate(template.id),
+    restore: () => repo.saveTemplate(template),
   });
-  if (!ok) return;
-  try {
-    await repo.deleteTemplate(template.id);
-    showToast('已刪除範本');
-  } catch (err) {
-    showToast(errorMessage(err));
-  }
 }
 
 /** 修改既有紀錄 */
@@ -114,23 +107,13 @@ export function resumeDraft(): void {
   navigate('/log/session');
 }
 
-/** 刪除紀錄（需確認），刪除成功回傳 true */
-export async function deleteSession(session: WorkoutSession): Promise<boolean> {
-  const ok = await confirmDialog({
-    title: '刪除這筆訓練？',
-    body: '刪除後無法復原。',
-    confirmText: '刪除',
-    danger: true,
+/** 刪除紀錄（幾秒內可以復原），刪除成功回傳 true */
+export function deleteSession(session: WorkoutSession): Promise<boolean> {
+  return deleteWithUndo({
+    message: '已刪除訓練',
+    remove: () => repo.deleteSession(session.id),
+    restore: () => repo.saveSession(session),
   });
-  if (!ok) return false;
-  try {
-    await repo.deleteSession(session.id);
-    showToast('已刪除訓練');
-    return true;
-  } catch (err) {
-    showToast(errorMessage(err));
-    return false;
-  }
 }
 
 /** 捨棄進行中的訓練（需確認），捨棄後回傳 true */

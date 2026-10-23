@@ -7,7 +7,7 @@ import { mealForHour } from '../../lib/nutrition';
 import { formatNumber, parseNumber, sanitizeDecimalInput } from '../../lib/number';
 import { compressImage } from '../../lib/photos';
 import { MEAL_LABELS, MEAL_TYPES, type FoodEntry, type FoodFavorite, type MealType } from '../../types/models';
-import { confirmDialog } from '../Dialog';
+import { deleteWithUndo } from '../../actions/undo';
 import { showToast } from '../Toast';
 import { useObjectUrl, useStoredPhoto } from './PhotoThumb';
 
@@ -155,16 +155,17 @@ export function FoodEntrySheet({ initial, date, onClose }: Props) {
 
   const remove = async () => {
     if (!initial) return;
-    const ok = await confirmDialog({ title: `刪除「${initial.name}」？`, confirmText: '刪除', danger: true });
-    if (!ok) return;
-    try {
-      await repo.deleteFoodEntry(initial.id);
-      if (initial.photoId) void deletePhoto(initial.photoId).catch(() => undefined);
-      showToast('已刪除紀錄');
-      onClose();
-    } catch (err) {
-      showToast(errorMessage(err));
-    }
+    const entry = initial;
+    const ok = await deleteWithUndo({
+      message: `已刪除「${entry.name}」`,
+      remove: () => repo.deleteFoodEntry(entry.id),
+      restore: () => repo.saveFoodEntry(entry),
+      // 照片等到確定不復原才刪
+      afterExpire: () => {
+        if (entry.photoId) void deletePhoto(entry.photoId).catch(() => undefined);
+      },
+    });
+    if (ok) onClose();
   };
 
   return (
