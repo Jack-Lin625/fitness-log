@@ -1,11 +1,13 @@
 /**
- * 每週回顧：上週（週一到週日）練了幾次、訓練量、破了哪些紀錄、體重與飲食的變化、哪些部位組數不夠
+ * 每週回顧：上週（週一到週日）練了幾次、訓練量、破了哪些紀錄、體重與飲食的變化、哪些部位組數不夠、
+ * 哪些動作很久沒進步
  *
  * 只整理紀錄裡已有的資料，沒記錄的項目就不顯示（例如沒量體重就沒有體重那一行）。
  */
 import type { BodyMetric, BodyPart, Exercise, FoodEntry, WorkoutSession } from '../types/models';
 import { BODY_PARTS } from '../types/models';
 import { addDays } from './date';
+import { findPlateaus, type Plateau } from './plateau';
 import { findNewRecords, type RecordKind } from './records';
 import { targetStatus, type SetTarget } from './setTargets';
 import { sessionVolume, setsByBodyPart, type IsAssisted } from './volume';
@@ -36,6 +38,8 @@ export interface WeeklyReview {
   food: { days: number; avgKcal: number; avgProtein: number | null } | null;
   /** 組數沒達到下限的部位（這週有練才看） */
   lowParts: { part: BodyPart; sets: number; min: number }[];
+  /** 到這週結束時，很久沒進步的動作 */
+  plateaus: Plateau[];
 }
 
 export interface ReviewInput {
@@ -119,6 +123,7 @@ export function weeklyReview(input: ReviewInput): WeeklyReview {
         }
       : null,
     lowParts,
+    plateaus: findPlateaus(sessions, end, input.traitsOf),
   };
 }
 

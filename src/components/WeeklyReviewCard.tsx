@@ -4,6 +4,7 @@ import { estimateTdee } from '../lib/adaptiveTdee';
 import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date';
 import { formatNumber } from '../lib/number';
 import { latestBody, nutritionPlan } from '../lib/nutrition';
+import { PLATEAU_TIPS } from '../lib/plateau';
 import type { RecordKind } from '../lib/records';
 import { formatWeight, toDisplay, unitLabel } from '../lib/units';
 import { formatVolume } from '../lib/volume';
@@ -36,6 +37,7 @@ export function WeeklyReviewCard() {
   const repo = useRepository();
   const thisWeek = startOfWeek();
   const [dismissed, setDismissed] = useState(readDismissed);
+  const [tipsOpen, setTipsOpen] = useState(false);
   if (dismissed === thisWeek) return null;
 
   const data = repo.getData();
@@ -170,6 +172,36 @@ export function WeeklyReviewCard() {
                 </span>
               ))}
               <span class="muted"> 組</span>
+            </dd>
+          </>
+        )}
+
+        {review.plateaus.length > 0 && (
+          <>
+            <dt>停滯</dt>
+            <dd>
+              <ul class="review-records">
+                {review.plateaus.slice(0, MAX_RECORDS).map((p) => (
+                  <li key={p.exerciseId}>
+                    <a href={`#/charts/exercise/${encodeURIComponent(p.exerciseId)}`} class="ex-link">
+                      {repo.getExercise(p.exerciseId)?.name ?? '已刪除的動作'}
+                    </a>{' '}
+                    <span class="num">{p.weeks}</span> 週沒進步
+                    <span class="muted">（之後練了 {p.sessionsSince} 次）</span>
+                  </li>
+                ))}
+              </ul>
+              {tipsOpen ? (
+                <ul class="review-tips">
+                  {PLATEAU_TIPS.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              ) : (
+                <button type="button" class="btn-text" onClick={() => setTipsOpen(true)}>
+                  可以怎麼做 ›
+                </button>
+              )}
             </dd>
           </>
         )}

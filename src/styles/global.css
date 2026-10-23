@@ -3653,3 +3653,15 @@ body:has(.rest-bar) .page-editor {
   padding: 4px 8px;
   margin-top: 4px;
 }
+
+.review-tips {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.note-warn .review-tips {
+  color: inherit;
+}

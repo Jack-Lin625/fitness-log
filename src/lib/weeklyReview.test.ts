@@ -5,7 +5,14 @@ import { DEFAULT_SET_TARGETS } from './setTargets';
 import { hasReview, weeklyReview, type ReviewInput } from './weeklyReview';
 
 const byId = new Map(DEFAULT_EXERCISES.map((e) => [e.id, e]));
-const session = (id: string, date: string, exerciseId: string, weight: number, reps: number, sets = 3): WorkoutSession => ({
+const session = (
+  id: string,
+  date: string,
+  exerciseId: string,
+  weight: number,
+  reps: number,
+  sets = 3,
+): WorkoutSession => ({
   id,
   date,
   createdAt: Number(id.replace(/\D/g, '')) || 1,
@@ -84,7 +91,12 @@ describe('weeklyReview', () => {
           { id: 'd', date: '2026-10-17', weight: 78.2 },
           { id: 'e', date: '2026-10-15', waist: 80 },
         ],
-        foodEntries: [food('2026-10-12', 1000, 50), food('2026-10-12', 1200, 60), food('2026-10-14', 1800), food('2026-10-20', 9999)],
+        foodEntries: [
+          food('2026-10-12', 1000, 50),
+          food('2026-10-12', 1200, 60),
+          food('2026-10-14', 1800),
+          food('2026-10-20', 9999),
+        ],
       }),
     );
     expect(r.weight?.avg).toBeCloseTo(78.4);
@@ -97,6 +109,20 @@ describe('weeklyReview', () => {
     expect(r.lowParts.map((p) => p.part)).toEqual(['chest', 'back', 'shoulders', 'arms', 'core']);
     expect(r.lowParts[0]).toEqual({ part: 'chest', sets: 0, min: 10 });
     expect(weeklyReview(base()).lowParts).toEqual([]);
+  });
+
+  it('列出到這週結束時停滯的動作（看不到下週的紀錄）', () => {
+    const sessions = [
+      session('s7', '2026-10-20', 'squat', 120, 5), // 下週破了，回顧上週時還不知道
+      session('s6', '2026-10-17', 'squat', 100, 5),
+      session('s5', '2026-10-10', 'squat', 100, 5),
+      session('s4', '2026-10-03', 'squat', 100, 5),
+      session('s3', '2026-09-14', 'squat', 100, 5),
+      session('s2', '2026-09-07', 'squat', 95, 5),
+    ];
+    expect(weeklyReview(base({ sessions })).plateaus).toMatchObject([
+      { exerciseId: 'squat', lastProgress: '2026-09-14', weeks: 5 },
+    ]);
   });
 
   it('什麼都沒記錄：沒有東西可以回顧', () => {
