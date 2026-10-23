@@ -168,6 +168,8 @@ export interface Settings {
   weightUnit?: WeightUnit;
   /** 個別動作的休息秒數（動作 id → 秒），沒設定的用 defaultRestSeconds */
   restByExercise?: Record<string, number>;
+  /** 自訂的每週各部位組數目標，沒設定的部位用預設（lib/setTargets.ts） */
+  setTargets?: Partial<Record<BodyPart, { min: number; max: number }>>;
 }
 
 /*

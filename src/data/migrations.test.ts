@@ -265,3 +265,14 @@ describe('migrate：v6（體態照片）', () => {
     expect(migrate({ ...base, bodyMetrics: [{ id: 'b', date: '2026-10-20', photos: [{ pose: 'x' }] }] }).bodyMetrics[0]).not.toHaveProperty('photos');
   });
 });
+
+describe('migrate：每週組數目標', () => {
+  it('只保留合理的自訂目標', () => {
+    const { settings } = migrate({
+      ...base,
+      settings: { setTargets: { chest: { min: 12, max: 18 }, core: { min: 0, max: 0 }, legs: { min: 30, max: 10 }, neck: { min: 1, max: 2 } } },
+    });
+    expect(settings.setTargets).toEqual({ chest: { min: 12, max: 18 }, core: { min: 0, max: 0 } });
+    expect(migrate({ ...base, settings: { setTargets: 'x' } }).settings).not.toHaveProperty('setTargets');
+  });
+});

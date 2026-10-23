@@ -1,5 +1,6 @@
 import type {
   AppData,
+  BodyPart,
   BodyMetric,
   Exercise,
   FoodEntry,
@@ -13,6 +14,7 @@ import type {
   WorkoutTemplate,
 } from '../types/models';
 import { createId } from '../lib/id';
+import { resolveTargets, type SetTarget } from '../lib/setTargets';
 import { DEFAULT_MUSCLES } from './catalog';
 import { DEFAULT_EXERCISES } from './defaultExercises';
 import { createEmptyData, migrate } from './migrations';
@@ -378,6 +380,23 @@ export class Repository {
 
   getSettings(): Settings {
     return this.data.settings;
+  }
+
+  /** 每週各部位的組數目標（自訂 + 預設） */
+  getSetTargets(): Record<BodyPart, SetTarget> {
+    return resolveTargets(this.data.settings.setTargets);
+  }
+
+  /** 設定某部位的組數目標；null 代表改回預設 */
+  async setSetTarget(part: BodyPart, target: SetTarget | null): Promise<void> {
+    const targets = { ...this.data.settings.setTargets };
+    if (target === null) delete targets[part];
+    else targets[part] = { min: target.min, max: target.max };
+    const { setTargets: _, ...settings } = this.data.settings;
+    await this.commit({
+      ...this.data,
+      settings: Object.keys(targets).length > 0 ? { ...settings, setTargets: targets } : settings,
+    });
   }
 
   /** 訓練重量的單位 */
