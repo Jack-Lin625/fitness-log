@@ -4,6 +4,7 @@ import '@fontsource/barlow-condensed/latin-700.css';
 import './styles/tokens.css';
 import './styles/global.css';
 import { App } from './app';
+import { cloud } from './actions/cloud';
 import { repo } from './data';
 import { loadChart } from './lib/chart';
 
@@ -12,6 +13,8 @@ async function bootstrap() {
   await repo.init();
   const root = document.getElementById('app');
   if (root) render(<App />, root);
+  // 有連線 Google Drive 時，資料變更會自動備份
+  cloud.start();
 
   // 請瀏覽器把資料標記為「持久保存」，降低儲存空間不足時被自動清除的機會
   void navigator.storage?.persist?.().catch(() => undefined);

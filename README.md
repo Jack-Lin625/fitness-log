@@ -2,7 +2,7 @@
 
 手機優先的健身訓練紀錄網頁 App。資料只存在瀏覽器裡（IndexedDB；瀏覽器不支援時改用 localStorage），不需要後端。
 
-主要功能：訓練紀錄與休息計時（可依動作設定）、菜單範本、超級組、動作備註、訓練時長、訓練中即時提示破紀錄與加重建議、公斤／磅切換、138 個動作的教學與假人示範、PR 與 1RM 趨勢、體態追蹤、飲食與熱量（TDEE、增肌減脂建議攝取量、拍照記錄每餐）、槓片／1RM 計算、練前熱身與練後拉伸引導。
+主要功能：Google Drive 自動雲端備份、訓練紀錄與休息計時（可依動作設定）、菜單範本、超級組、動作備註、訓練時長、訓練中即時提示破紀錄與加重建議、公斤／磅切換、138 個動作的教學與假人示範、PR 與 1RM 趨勢、體態追蹤、飲食與熱量（TDEE、增肌減脂建議攝取量、拍照記錄每餐）、槓片／1RM 計算、練前熱身與練後拉伸引導。
 
 ## 在電腦上開發
 
@@ -29,6 +29,39 @@ npm run test:watch # 邊改邊測：存檔時自動重跑相關測試
 5. 網址：`https://<你的 GitHub 帳號>.github.io/fitness-log/`
 
 之後每次把修改推送到 `main`，都會自動重新部署。
+
+## Google Drive 雲端備份
+
+連線後，每次新增或修改紀錄都會自動把完整備份上傳到你的 Google Drive。備份放在 App 專用的隱藏資料夾（`appDataFolder`），App 只拿得到這個資料夾，看不到你 Drive 裡的其他檔案。換手機時，在新手機連線同一個 Google 帳號就能一鍵還原。飲食照片不在雲端備份裡。
+
+### 第一次設定：建立 Google OAuth 用戶端 ID（約 10 分鐘，只要做一次）
+
+這是純前端 App，需要一個你自己的 Google「OAuth 用戶端 ID」才能登入 Google。用戶端 ID 是公開資訊（會出現在網頁裡），不是密碼。Google Cloud 主控台的選單名稱偶爾會改，找不到時用上方的搜尋列搜尋關鍵字。
+
+1. 到 [Google Cloud 主控台](https://console.cloud.google.com/)，建立一個新專案（名稱例如 `fitness-log`）。
+2. 搜尋「Google Drive API」，按「啟用」。
+3. 搜尋「OAuth 同意畫面」（新版叫「Google Auth Platform」），按「開始」：
+   - 應用程式名稱：例如「訓練紀錄」；使用者支援電子郵件：選你的 Gmail
+   - 目標對象：選「外部」
+   - 聯絡資訊：填你的 Gmail，同意政策後建立
+4. 在「目標對象」頁的「測試使用者」加入你自己的 Gmail（App 維持「測試中」狀態即可，只有這裡列出的帳號能登入）。
+5. 在「資料存取」頁按「新增或移除範圍」，手動加入 `https://www.googleapis.com/auth/drive.appdata`，儲存。
+6. 在「用戶端」（或「憑證」）頁建立 OAuth 用戶端 ID：
+   - 應用程式類型：「網頁應用程式」
+   - 已授權的 JavaScript 來源：`https://<你的 GitHub 帳號小寫>.github.io`（例如 `https://jack-lin625.github.io`）；要在電腦上測試的話，再加 `http://localhost:5173` 和 `http://localhost:4173`
+   - 「已授權的重新導向 URI」留空
+7. 複製建立好的用戶端 ID（長得像 `123456-abc.apps.googleusercontent.com`）。
+8. 到 GitHub repo 的 **Settings → Secrets and variables → Actions → Variables** 分頁，按「New repository variable」：名稱 `GOOGLE_CLIENT_ID`，值貼上用戶端 ID。
+9. 到 **Actions** 分頁，選「部署到 GitHub Pages」→「Run workflow」重新部署。完成後，App 的「設定 → Google Drive 雲端備份」就會出現「連線 Google Drive」按鈕。
+
+在電腦上開發時，在專案根目錄建立 `.env.local`（不會被上傳到 GitHub），內容：`VITE_GOOGLE_CLIENT_ID=你的用戶端 ID`。
+
+### 使用方式與限制
+
+- Google 給純前端 App 的授權大約 1 小時有效，而且不能在背景自動續期。過期後如果有新的紀錄，紀錄頁會出現「有變更還沒備份到 Google Drive」，按「上傳」就會繼續（已授權過的帳號，Google 視窗會自動關閉）。
+- 上傳前一定先檢查雲端：新手機（沒有資料）不會用空白資料蓋掉雲端，會問你要不要還原；雲端的備份如果是別台手機上傳的，會暫停自動備份，讓你選要保留哪一份。
+- 這是「自動備份」，不是多台裝置同時使用的雙向同步：同一時間請以一支手機為主。
+- 加到 iPhone 主畫面的 App 開啟 Google 登入視窗時，若一直無法完成，請先用 Safari 開啟網站連線一次。
 
 ## 加到手機主畫面
 

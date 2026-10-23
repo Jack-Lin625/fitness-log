@@ -2,6 +2,7 @@
  * 下載完整備份（設定頁與紀錄頁的備份提醒共用）
  */
 import { showToast } from '../components/Toast';
+import { cloud } from './cloud';
 import { repo } from '../data';
 import { datedName, downloadFile, toBackupJson } from '../lib/exporters';
 
@@ -14,8 +15,9 @@ export function daysSinceBackup(): number | null {
   return at ? Math.floor((Date.now() - at) / 864e5) : null;
 }
 
-/** 有資料、而且從沒備份或超過提醒天數 */
+/** 有資料、而且從沒備份或超過提醒天數（有開 Google Drive 雲端備份就不提醒，由雲端備份自己的提示處理） */
 export function backupOverdue(): boolean {
+  if (cloud.state.meta.enabled) return false;
   const d = repo.getData();
   const hasData = d.sessions.length + d.bodyMetrics.length + d.customExercises.length + d.foodEntries.length > 0;
   const days = daysSinceBackup();
