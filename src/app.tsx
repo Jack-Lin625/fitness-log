@@ -38,7 +38,7 @@ export function App() {
   if (isEditor) content = <SessionEditorRoute />;
   else if (playerMode) content = <RoutinePlayer key={`${playerMode}-${params[2]}`} mode={playerMode} musclesParam={params[2]} />;
   else if (viewId) content = <SessionView id={viewId} />;
-  else if (route === 'tools') content = <ToolsPage tab={params[0]} />;
+  else if (route === 'tools') content = <ToolsPage tab={params[0]} param={params[1]} />;
   else if (route === 'charts') content = <ChartsPage params={params} />;
   else {
     const Page = PAGES[route];

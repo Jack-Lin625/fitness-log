@@ -51,7 +51,7 @@ export const LM = {
 
 const JOINTS = ['shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle', 'heel', 'toe'] as const;
 export type Joint = (typeof JOINTS)[number];
-type Side = 'left' | 'right';
+export type Side = 'left' | 'right';
 
 const INDEX: Record<Side, Record<Joint, number>> = {
   left: {
@@ -76,8 +76,12 @@ const INDEX: Record<Side, Record<Joint, number>> = {
   },
 };
 
-/** 一格裡兩側的關節（像素座標） */
-export type Body = Record<Side, Record<Joint, Vec>>;
+/** 一格裡兩側的關節與鼻子（像素座標） */
+export interface Body {
+  left: Record<Joint, Vec>;
+  right: Record<Joint, Vec>;
+  nose: Vec;
+}
 
 export type View = 'side' | 'front' | 'unknown';
 
@@ -90,12 +94,16 @@ export interface Track {
   view: View;
   /** 大腿 + 小腿的長度（像素），用來把距離換成「幾分之幾腿長」 */
   legLength: number;
+  /** 肩到髖的長度（像素），上半身動作用來換算距離 */
+  torsoLength: number;
   /** 有偵測到全身的格數比例 */
   coverage: number;
 }
 
 /** 判斷全身有沒有偵測到用的關節 */
-const KEY_JOINTS: Joint[] = ['shoulder', 'hip', 'knee', 'ankle'];
+export const KEY_JOINTS: Joint[] = ['shoulder', 'hip', 'knee', 'ankle'];
+/** 上半身動作只需要看得到這些 */
+export const UPPER_JOINTS: Joint[] = ['shoulder', 'elbow', 'wrist', 'hip'];
 const MIN_VISIBILITY = 0.5;
 /** 偵測不到的空檔在這個秒數以內才內插 */
 const MAX_GAP_SEC = 0.5;
@@ -111,27 +119,37 @@ export const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 export const mid = (a: Vec, b: Vec): Vec => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
 /** 某一側的關節都看得清楚嗎 */
-function sideScore(lms: Landmark[], side: Side): number {
-  return KEY_JOINTS.reduce((n, j) => n + vis(lms[INDEX[side][j]]), 0) / KEY_JOINTS.length;
+function sideScore(lms: Landmark[], side: Side, joints: Joint[]): number {
+  return joints.reduce((n, j) => n + vis(lms[INDEX[side][j]]), 0) / joints.length;
 }
 
 /** 偵測結果 → 軌跡 */
-export function buildTrack(frames: PoseFrame[], size: { width: number; height: number }): Track {
+export function buildTrack(
+  frames: PoseFrame[],
+  size: { width: number; height: number },
+  keyJoints: Joint[] = KEY_JOINTS,
+): Track {
   const times = frames.map((f) => f.t);
   // 1. 哪一側比較清楚（側面拍時近側的可信度高）
   let left = 0;
   let right = 0;
   for (const f of frames) {
     if (!f.landmarks) continue;
-    left += sideScore(f.landmarks, 'left');
-    right += sideScore(f.landmarks, 'right');
+    left += sideScore(f.landmarks, 'left', keyJoints);
+    right += sideScore(f.landmarks, 'right', keyJoints);
   }
   const side: Side = left >= right ? 'left' : 'right';
 
   // 2. 換成像素；全身偵測不到的格留空
   const raw: (Body | null)[] = frames.map((f) => {
     const lms = f.landmarks;
-    if (!lms || lms.length < 33 || Math.max(sideScore(lms, 'left'), sideScore(lms, 'right')) < MIN_VISIBILITY) return null;
+    if (
+      !lms ||
+      lms.length < 33 ||
+      Math.max(sideScore(lms, 'left', keyJoints), sideScore(lms, 'right', keyJoints)) < MIN_VISIBILITY
+    ) {
+      return null;
+    }
     const pick = (s: Side) =>
       Object.fromEntries(
         JOINTS.map((j) => {
@@ -139,10 +157,10 @@ export function buildTrack(frames: PoseFrame[], size: { width: number; height: n
           return [j, { x: l.x * size.width, y: l.y * size.height }];
         }),
       ) as Record<Joint, Vec>;
-    return { left: pick('left'), right: pick('right') };
+    const nose = lms[LM.nose]!;
+    return { left: pick('left'), right: pick('right'), nose: { x: nose.x * size.width, y: nose.y * size.height } };
   });
-  const valid = raw.filter(Boolean).length;
-  const coverage = frames.length ? valid / frames.length : 0;
+  const coverage = frames.length ? raw.filter(Boolean).length / frames.length : 0;
 
   // 3. 拍攝角度：兩肩的水平距離 ÷ 軀幹長度（側面時兩肩幾乎重疊）
   const ratios: number[] = [];
@@ -161,19 +179,20 @@ export function buildTrack(frames: PoseFrame[], size: { width: number; height: n
       for (const b of raw) {
         if (!b) continue;
         for (const s of ['left', 'right'] as const) for (const j of JOINTS) b[s][j] = { x: -b[s][j].x, y: b[s][j].y };
+        b.nose = { x: -b.nose.x, y: b.nose.y };
       }
     }
   }
 
   const bodies = smooth(interpolate(raw, times), times);
-  const legs = bodies
-    .filter((b): b is Body => !!b)
-    .map((b) => dist(b[side].hip, b[side].knee) + dist(b[side].knee, b[side].ankle));
-  return { times, bodies, side, view, legLength: median(legs), coverage };
+  const valid = bodies.filter((b): b is Body => !!b);
+  const legs = valid.map((b) => dist(b[side].hip, b[side].knee) + dist(b[side].knee, b[side].ankle));
+  const torsos = valid.map((b) => dist(b[side].shoulder, b[side].hip));
+  return { times, bodies, side, view, legLength: median(legs), torsoLength: median(torsos), coverage };
 }
 
 function lerpBody(a: Body, b: Body, k: number): Body {
-  const out = { left: {}, right: {} } as Body;
+  const out = { left: {}, right: {}, nose: { x: a.nose.x + (b.nose.x - a.nose.x) * k, y: a.nose.y + (b.nose.y - a.nose.y) * k } } as Body;
   for (const s of ['left', 'right'] as const) {
     for (const j of JOINTS) {
       out[s][j] = { x: a[s][j].x + (b[s][j].x - a[s][j].x) * k, y: a[s][j].y + (b[s][j].y - a[s][j].y) * k };
@@ -204,13 +223,14 @@ function smooth(bodies: (Body | null)[], times: number[]): (Body | null)[] {
   return bodies.map((b, i) => {
     if (!b) return null;
     const near = [bodies[i - 1], b, bodies[i + 1]].filter((x): x is Body => !!x);
-    const out = { left: {}, right: {} } as Body;
+    const avg = (get: (x: Body) => Vec): Vec => ({
+      x: near.reduce((n, x) => n + get(x).x, 0) / near.length,
+      y: near.reduce((n, x) => n + get(x).y, 0) / near.length,
+    });
+    const out = { left: {}, right: {}, nose: avg((x) => x.nose) } as Body;
     for (const s of ['left', 'right'] as const) {
       for (const j of JOINTS) {
-        out[s][j] = {
-          x: near.reduce((n, x) => n + x[s][j].x, 0) / near.length,
-          y: near.reduce((n, x) => n + x[s][j].y, 0) / near.length,
-        };
+        out[s][j] = avg((x) => x[s][j]);
       }
     }
     return out;
@@ -232,6 +252,17 @@ export function angleAt(a: Vec, b: Vec, c: Vec): number {
 /** 軀幹（髖 → 肩）和垂直線的角度；往前傾為正、往後仰為負（面向右邊） */
 export function torsoLean(hip: Vec, shoulder: Vec): number {
   return Math.atan2(shoulder.x - hip.x, hip.y - shoulder.y) * DEG;
+}
+
+/**
+ * b 偏離 a–c 直線多少度：b 在線的下方（y 較大，例如棒式塌腰）為正，上方為負
+ */
+export function bendBelow(a: Vec, b: Vec, c: Vec): number {
+  const dev = 180 - angleAt(a, b, c);
+  const dx = c.x - a.x;
+  if (Math.abs(dx) < 1e-6) return dev;
+  const lineY = a.y + ((b.x - a.x) / dx) * (c.y - a.y);
+  return b.y >= lineY ? dev : -dev;
 }
 
 /** 大腿低於水平幾度（髖比膝低為正） */
@@ -302,4 +333,19 @@ export function segmentReps(signal: (number | null)[], minRange: number, openEnd
     reps.push({ start, peak, end });
   }
   return reps;
+}
+
+/**
+ * 依影片開頭的姿勢決定方向：開頭（休息的姿勢）的值應該是「淺」的那一端，
+ * 如果開頭比較接近「深」的那一端就把訊號反過來。用在起始姿勢不固定的動作（例如過頭三頭伸展）。
+ */
+export function orientByStart(signal: (number | null)[], times: number[]): (number | null)[] {
+  const values = signal.filter((v): v is number => v !== null).sort((a, b) => a - b);
+  if (values.length < 5) return signal;
+  const low = values[Math.floor(values.length * 0.05)]!;
+  const high = values[Math.floor(values.length * 0.95)]!;
+  const t0 = times.find((_, i) => signal[i] !== null) ?? 0;
+  const start = signal.filter((v, i): v is number => v !== null && times[i]! - t0 <= 0.5);
+  const first = start.reduce((a, b) => a + b, 0) / (start.length || 1);
+  return first - low <= high - first ? signal : signal.map((v) => (v === null ? null : -v));
 }
