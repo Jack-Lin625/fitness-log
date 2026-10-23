@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BACKUP_FILE_NAME, downloadBackup, DriveAuthError, findBackup, uploadBackup } from './googleDrive';
+import {
+  BACKUP_FILE_NAME,
+  deletePhotoFile,
+  downloadBackup,
+  downloadPhoto,
+  DriveAuthError,
+  findBackup,
+  listPhotos,
+  uploadBackup,
+  uploadPhoto,
+} from './googleDrive';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
@@ -55,5 +65,33 @@ describe('googleDrive', () => {
     await expect(uploadBackup('tok', '{}')).rejects.toThrow('空間已滿');
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch')));
     await expect(findBackup('tok')).rejects.toThrow('請確認網路');
+  });
+
+  it('照片：列出全部（跨頁），只認 photo- 開頭的檔名', async () => {
+    const fetchMock = mockFetch(
+      json({ nextPageToken: 'p2', files: [{ id: 'f1', name: 'photo-a' }, { id: 'x', name: 'fitlog-backup.json' }] }),
+      json({ files: [{ id: 'f2', name: 'photo-b' }] }),
+    );
+    expect(await listPhotos('tok')).toEqual(new Map([['a', 'f1'], ['b', 'f2']]));
+    expect(String(fetchMock.mock.calls[1]![0])).toContain('pageToken=p2');
+  });
+
+  it('照片：上傳時檔名帶照片 id、內容是原本的位元組；下載、刪除', async () => {
+    const fetchMock = mockFetch(json({ id: 'f1' }), new Response(new Uint8Array([7, 8])), new Response(null, { status: 204 }));
+    await uploadPhoto('tok', 'abc', new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }));
+    const body = fetchMock.mock.calls[0]![1]!.body as Blob;
+    const text = await body.text();
+    expect(text).toContain('"name":"photo-abc"');
+    expect(text).toContain('"parents":["appDataFolder"]');
+    expect(text).toContain('Content-Type: image/jpeg\r\n\r\n\u0001\u0002\u0003\r\n');
+
+    expect([...new Uint8Array(await (await downloadPhoto('tok', 'f1')).arrayBuffer())]).toEqual([7, 8]);
+    await deletePhotoFile('tok', 'f1');
+    expect(fetchMock.mock.calls[2]![1]!.method).toBe('DELETE');
+  });
+
+  it('照片：刪除已經不在的檔案不算錯誤', async () => {
+    mockFetch(new Response('', { status: 404 }));
+    await expect(deletePhotoFile('tok', 'gone')).resolves.toBeUndefined();
   });
 });

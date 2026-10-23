@@ -5,11 +5,21 @@
  * - 存取權杖約 1 小時有效；過期時不能在背景自動重新取得（Google 的視窗必須由使用者按按鈕開啟），
  *   這時紀錄頁會顯示「上傳到 Google Drive」按鈕，按一下就好。
  * - 上傳前一定先檢查雲端的檔案（規則見 lib/cloudSync.ts），不會用空白資料或舊資料蓋掉雲端備份。
- * - 只備份訓練紀錄等資料；飲食照片太大，仍要在設定頁另外下載。
+ * - 照片（飲食、體態）每張存成一個檔案，資料上傳後在背景同步：新照片上傳、別台的照片下載、
+ *   紀錄已經用不到的照片從雲端刪除。照片同步不擋其他操作。
  */
 import type { Repository } from '../data/repository';
 import { migrate } from '../data/migrations';
-import { decideSync, EMPTY_META, hasValidToken, parseMeta, type CloudMeta, type SyncDecision } from '../lib/cloudSync';
+import {
+  decideSync,
+  EMPTY_META,
+  hasValidToken,
+  parseMeta,
+  planPhotoSync,
+  referencedPhotoIds,
+  type CloudMeta,
+  type SyncDecision,
+} from '../lib/cloudSync';
 import { errorMessage } from '../lib/errors';
 import { toBackupJson } from '../lib/exporters';
 import type { AccessToken } from '../lib/googleAuth';
@@ -28,6 +38,21 @@ export interface CloudState {
   decision: Extract<SyncDecision, { kind: 'restore' | 'conflict' }> | null;
   /** 上一次失敗的原因 */
   error: string | null;
+  /** 照片同步的進度（同步中才有） */
+  photos: { done: number; total: number } | null;
+  /** 上一次照片同步失敗的原因 */
+  photoError: string | null;
+}
+
+/** 照片的讀寫：雲端（Google Drive）與這台裝置（IndexedDB） */
+export interface PhotoDeps {
+  list: (token: string) => Promise<Map<string, string>>;
+  upload: (token: string, id: string, blob: Blob) => Promise<void>;
+  download: (token: string, fileId: string) => Promise<Blob>;
+  remove: (token: string, fileId: string) => Promise<void>;
+  localIds: () => Promise<Set<string>>;
+  getLocal: (id: string) => Promise<Blob | undefined>;
+  saveLocal: (id: string, blob: Blob) => Promise<void>;
 }
 
 export interface CloudDeps {
@@ -41,6 +66,8 @@ export interface CloudDeps {
   downloadBackup: (token: string, fileId: string) => Promise<string>;
   /** 還原前確認（會取代這台裝置的資料） */
   confirmRestore: (cloud: CloudFile, incoming: AppData) => Promise<boolean>;
+  /** 照片同步；沒有就只備份紀錄 */
+  photos?: PhotoDeps;
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 }
 
@@ -67,9 +94,19 @@ export class CloudBackup {
   readonly store: Store<CloudState>;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private snapshot: unknown[] = [];
+  private photoTask: Promise<void> | null = null;
+  /** 排隊中的照片同步（值為是否刪除雲端用不到的照片）；null 表示沒有排隊 */
+  private photoQueued: boolean | null = null;
 
   constructor(private readonly deps: CloudDeps) {
-    this.store = createStore<CloudState>({ meta: this.readMeta(), busy: null, decision: null, error: null });
+    this.store = createStore<CloudState>({
+      meta: this.readMeta(),
+      busy: null,
+      decision: null,
+      error: null,
+      photos: null,
+      photoError: null,
+    });
   }
 
   get state(): CloudState {
@@ -82,6 +119,13 @@ export class CloudBackup {
     this.deps.repo.subscribe(() => this.onDataChanged());
     if (this.state.meta.enabled) this.deps.preloadAuth?.();
     if (this.state.meta.enabled && this.state.meta.dirty) this.scheduleUpload();
+    // 補上之前沒同步完的照片（例如上次同步到一半關掉 App）
+    if (this.state.meta.enabled && hasValidToken(this.state.meta)) this.queuePhotoSync(false);
+  }
+
+  /** 等照片同步全部完成（測試用） */
+  async photosSettled(): Promise<void> {
+    while (this.photoTask) await this.photoTask;
   }
 
   /**
@@ -96,6 +140,7 @@ export class CloudBackup {
     void this.run('upload', async () => {
       await this.ensureToken();
       if (this.state.meta.dirty) this.scheduleUpload();
+      else this.queuePhotoSync(false);
     }).catch(() => undefined);
   }
 
@@ -147,8 +192,9 @@ export class CloudBackup {
   /** 中斷連線：撤銷授權、停止自動備份（雲端的備份檔保留） */
   async disconnect(): Promise<void> {
     const token = this.state.meta.token;
+    this.photoQueued = null;
     this.saveMeta({ ...EMPTY_META });
-    this.store.set({ ...this.state, decision: null, error: null });
+    this.store.set({ ...this.state, decision: null, error: null, photoError: null });
     if (token) await this.deps.revoke(token).catch(() => undefined);
   }
 
@@ -203,6 +249,8 @@ export class CloudBackup {
       lastUploadedModified: file.modifiedTime,
       dirty: false,
     });
+    // 雲端的紀錄現在和這台一致，可以順便清掉雲端用不到的照片
+    this.queuePhotoSync(true);
   }
 
   private async restore(token: string, cloud: CloudFile): Promise<void> {
@@ -219,6 +267,76 @@ export class CloudBackup {
     this.snapshot = this.takeSnapshot();
     this.store.set({ ...this.state, decision: null });
     this.saveMeta({ ...this.state.meta, fileId: cloud.id, lastUploadedModified: cloud.modifiedTime, dirty: false });
+    this.queuePhotoSync(true);
+  }
+
+  // ───────── 照片 ─────────
+
+  private queuePhotoSync(prune: boolean): void {
+    if (!this.deps.photos) return;
+    this.photoQueued = (this.photoQueued ?? false) || prune;
+    this.photoTask ??= this.photoLoop().finally(() => {
+      this.photoTask = null;
+      // 剛結束時又有人排隊：再跑一次
+      if (this.photoQueued !== null) this.queuePhotoSync(this.photoQueued);
+    });
+  }
+
+  private async photoLoop(): Promise<void> {
+    while (this.photoQueued !== null) {
+      const prune = this.photoQueued;
+      this.photoQueued = null;
+      try {
+        await this.syncPhotos(prune);
+        if (this.state.photoError) this.store.set({ ...this.state, photoError: null });
+      } catch (err) {
+        if (err instanceof DriveAuthError) {
+          // 授權過期：下次按按鈕重新取得授權後會再同步，不另外提示
+          const { token: _t, tokenExpiresAt: _e, ...rest } = this.state.meta;
+          if (this.state.meta.enabled) this.saveMeta(rest);
+        } else {
+          this.store.set({ ...this.state, photoError: errorMessage(err) });
+        }
+        return;
+      } finally {
+        this.store.set({ ...this.state, photos: null });
+      }
+    }
+  }
+
+  /** 比對兩邊的照片並上傳、下載、刪除；照片內容不會變，比對 id 就夠了 */
+  private async syncPhotos(prune: boolean): Promise<void> {
+    const photos = this.deps.photos!;
+    const meta = this.state.meta;
+    if (!meta.enabled || !meta.token || !hasValidToken(meta) || !this.deps.repo.loadStatus.ok) return;
+    const token = meta.token;
+    const [remote, local] = await Promise.all([photos.list(token), photos.localIds()]);
+    const plan = planPhotoSync({ referenced: referencedPhotoIds(this.deps.repo.getData()), local, remote, prune });
+    const total = plan.upload.length + plan.download.length + plan.remove.length;
+    let done = 0;
+    const progress = () => this.store.set({ ...this.state, photos: { done, total } });
+    /** 中斷連線後就停 */
+    const stopped = () => !this.state.meta.enabled;
+    if (total > 0) progress();
+    for (const id of plan.upload) {
+      if (stopped()) return;
+      const blob = await photos.getLocal(id);
+      if (blob) await photos.upload(token, id, blob);
+      done++;
+      progress();
+    }
+    for (const { id, fileId } of plan.download) {
+      if (stopped()) return;
+      await photos.saveLocal(id, await photos.download(token, fileId));
+      done++;
+      progress();
+    }
+    for (const fileId of plan.remove) {
+      if (stopped()) return;
+      await photos.remove(token, fileId);
+      done++;
+      progress();
+    }
   }
 
   private async ensureToken(): Promise<string> {

@@ -1295,6 +1295,8 @@ body:has(.rest-bar) .page-editor {
   min-height: 48px;
   display: grid;
   place-items: center;
+  border: 0;
+  background: transparent;
   border-radius: 10px;
   color: var(--muted);
   font-weight: 600;

@@ -3,6 +3,7 @@ import { useRepository } from '../../hooks/useRepository';
 import { addDays, formatDateLabel, todayString } from '../../lib/date';
 import { formatNumber } from '../../lib/number';
 import { chronological, computeRecords, type ExerciseRecord, type SetRef } from '../../lib/records';
+import { bestRelativeOf, formatRatio, weighIns, type RelativePoint } from '../../lib/relativeStrength';
 import { formatWeight, unitLabel } from '../../lib/units';
 
 /** 最近幾天內創下的紀錄會標示「新」 */
@@ -19,6 +20,22 @@ function SetDetail({ item: r, showReps = true }: { item: SetRef; showReps?: bool
   );
 }
 
+/** 相對力量最好的一次：估算 1RM 是當時體重的幾倍（有體重紀錄才顯示） */
+function RelativeStat({ best }: { best: RelativePoint | null }) {
+  if (!best) return null;
+  return (
+    <div class="pr-stat">
+      <span class="pr-label">相對力量</span>
+      <span class="pr-value">
+        <span class="num">{formatRatio(best.ratio)}</span> 倍體重
+      </span>
+      <span class="pr-detail">
+        體重 {formatNumber(best.bodyweight)} kg，{formatDateLabel(best.date)}
+      </span>
+    </div>
+  );
+}
+
 /** 個人紀錄牆：各動作的最佳重量與最佳估算 1RM */
 export function PrWall() {
   const repo = useRepository();
@@ -26,6 +43,7 @@ export function PrWall() {
   const records = [...computeRecords(sessions).values()];
   const unit = repo.getWeightUnit();
   const u = unitLabel(unit);
+  const weights = weighIns(repo.getBodyMetrics());
 
   // 每個動作第一次出現的日期：第一次的成績不算「新紀錄」
   const firstDate = new Map<string, string>();
@@ -110,6 +128,7 @@ export function PrWall() {
                       </span>
                     </div>
                   )}
+                  {r.bestE1rm && <RelativeStat best={bestRelativeOf(sessions, r.exerciseId, weights)} />}
                 </>
               )}
             </div>

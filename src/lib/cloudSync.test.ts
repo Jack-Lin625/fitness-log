@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideSync, hasValidToken, parseMeta } from './cloudSync';
+import { decideSync, hasValidToken, parseMeta, planPhotoSync, referencedPhotoIds } from './cloudSync';
 
 const cloud = { id: 'f1', modifiedTime: '2026-10-23T02:00:00.000Z', size: 100 };
 
@@ -40,5 +40,41 @@ describe('parseMeta / hasValidToken', () => {
     expect(hasValidToken({ enabled: true, dirty: false, token: 't', tokenExpiresAt: 2000 }, 1000)).toBe(true);
     expect(hasValidToken({ enabled: true, dirty: false, token: 't', tokenExpiresAt: 1000 }, 1000)).toBe(false);
     expect(hasValidToken({ enabled: true, dirty: false }, 1000)).toBe(false);
+  });
+});
+
+describe('照片同步', () => {
+  const data = {
+    foodEntries: [
+      { id: 'f1', date: '2026-10-20', meal: 'lunch' as const, name: '便當', kcal: 700, photoId: 'p-food', createdAt: 1 },
+      { id: 'f2', date: '2026-10-20', meal: 'dinner' as const, name: '麵', kcal: 600, createdAt: 2 },
+    ],
+    bodyMetrics: [
+      { id: 'b1', date: '2026-10-20', photos: [{ pose: 'front' as const, photoId: 'p-front' }, { pose: 'side' as const, photoId: 'p-side' }] },
+      { id: 'b2', date: '2026-10-21', weight: 75 },
+    ],
+  };
+
+  it('找出紀錄裡用到的照片（飲食與體態）', () => {
+    expect([...referencedPhotoIds(data)].sort()).toEqual(['p-food', 'p-front', 'p-side']);
+  });
+
+  it('這台有的上傳、雲端有的下載；兩邊都沒有的不管', () => {
+    const plan = planPhotoSync({
+      referenced: new Set(['a', 'b', 'c', 'gone']),
+      local: new Set(['a', 'c', 'extra']),
+      remote: new Map([
+        ['b', 'file-b'],
+        ['c', 'file-c'],
+      ]),
+      prune: false,
+    });
+    expect(plan).toEqual({ upload: ['a'], download: [{ id: 'b', fileId: 'file-b' }], remove: [] });
+  });
+
+  it('紀錄用不到的雲端照片：只有 prune 時才刪（避免刪掉別台還在用的）', () => {
+    const input = { referenced: new Set(['a']), local: new Set(['a']), remote: new Map([['a', 'fa'], ['old', 'f-old']]) };
+    expect(planPhotoSync({ ...input, prune: false }).remove).toEqual([]);
+    expect(planPhotoSync({ ...input, prune: true }).remove).toEqual(['f-old']);
   });
 });
