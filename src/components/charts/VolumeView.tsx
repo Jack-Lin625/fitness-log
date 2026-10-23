@@ -3,22 +3,12 @@ import { ChartCanvas } from '../ChartCanvas';
 import { EmptyState } from '../EmptyState';
 import { useRepository } from '../../hooks/useRepository';
 import { addDays, startOfWeek } from '../../lib/date';
-import { formatVolume, volumeByBodyPart } from '../../lib/volume';
+import { formatVolume, setsByBodyPart, volumeByBodyPart } from '../../lib/volume';
+import { SetTargetList, SetTargetSheet } from './SetTargets';
 import { toDisplay, unitLabel } from '../../lib/units';
-import { BODY_PARTS, BODY_PART_LABELS, type BodyPart, type Exercise, type WorkoutSession } from '../../types/models';
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from '../../types/models';
 
 type Metric = 'volume' | 'sets';
-
-/** 每個部位的正式組數（自體重量動作也算得到，彌補容量的盲點） */
-function setsByBodyPart(sessions: WorkoutSession[], getExercise: (id: string) => Exercise | undefined) {
-  const result = Object.fromEntries(BODY_PARTS.map((p) => [p, 0])) as Record<BodyPart, number>;
-  for (const s of sessions)
-    for (const ex of s.exercises) {
-      const part = getExercise(ex.exerciseId)?.bodyPart;
-      if (part) result[part] += ex.sets.filter((x) => !x.isWarmup).length;
-    }
-  return result;
-}
 
 /** 每週各部位訓練量長條圖 */
 export function VolumeView() {
@@ -26,6 +16,7 @@ export function VolumeView() {
   const sessions = repo.getSessions();
   const [weeks, setWeeks] = useState(8);
   const [metric, setMetric] = useState<Metric>('volume');
+  const [editingTargets, setEditingTargets] = useState(false);
   const weightUnit = repo.getWeightUnit();
 
   if (sessions.length === 0) {
@@ -53,6 +44,11 @@ export function VolumeView() {
     return `${m}/${day}`;
   });
   const unit = metric === 'volume' ? unitLabel(weightUnit) : '組';
+  // 組數目標一律看本週（週一開始）
+  const thisWeekSets = setsByBodyPart(
+    sessions.filter((s) => s.date >= thisWeek),
+    getEx,
+  );
 
   return (
     <div class="tool">
@@ -148,25 +144,39 @@ export function VolumeView() {
       />
 
       <section class="section">
-        <h2 class="section-title">{showLastWeek ? '上週各部位（本週還沒有紀錄）' : '本週各部位'}</h2>
-        <ul class="part-totals">
-          {BODY_PARTS.map((part) => (
-            <li key={part}>
-              <span class={`part-dot part-${part}`} aria-hidden="true" />
-              <span>{BODY_PART_LABELS[part]}</span>
-              <span class="part-total-value">
-                <span class="num">{formatVolume(current[part])}</span> {unit}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <h2 class="section-title section-title-row">
+          <span>本週組數目標</span>
+          <button type="button" class="btn-text" onClick={() => setEditingTargets(true)}>
+            調整目標
+          </button>
+        </h2>
+        <SetTargetList sets={thisWeekSets} targets={repo.getSetTargets()} />
+        <p class="muted small-text">淺色區塊是目標範圍；只算正式組，依動作的主要部位計算。</p>
       </section>
+
+      {metric === 'volume' && (
+        <section class="section">
+          <h2 class="section-title">{showLastWeek ? '上週各部位（本週還沒有紀錄）' : '本週各部位'}</h2>
+          <ul class="part-totals">
+            {BODY_PARTS.map((part) => (
+              <li key={part}>
+                <span class={`part-dot part-${part}`} aria-hidden="true" />
+                <span>{BODY_PART_LABELS[part]}</span>
+                <span class="part-total-value">
+                  <span class="num">{formatVolume(current[part])}</span> {unit}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <p class="note">
         {metric === 'volume'
           ? '容量不含熱身組；自體重量動作只計算額外負重，所以引體向上等動作的訓練量可以切換到「組數」查看。'
           : '組數只計算正式組，不含熱身組。'}
       </p>
+      {editingTargets && <SetTargetSheet onClose={() => setEditingTargets(false)} />}
     </div>
   );
 }

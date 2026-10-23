@@ -9,8 +9,9 @@ import { useRepository } from '../hooks/useRepository';
 import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date';
 import { formatSessionDuration } from '../lib/draft';
 import { toDisplay, unitLabel } from '../lib/units';
-import { formatVolume, sessionVolume, volumeBetween } from '../lib/volume';
-import { BODY_PARTS, type BodyPart } from '../types/models';
+import { targetStatus } from '../lib/setTargets';
+import { formatVolume, sessionVolume, setsByBodyPart, volumeBetween } from '../lib/volume';
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from '../types/models';
 
 /** 歷史紀錄一次顯示的筆數（練了幾年後清單會很長） */
 const HISTORY_PAGE = 30;
@@ -32,6 +33,13 @@ export function LogPage() {
   const unit = repo.getWeightUnit();
   const volumeText = (kg: number) => formatVolume(toDisplay(kg, unit));
   const backupDays = daysSinceBackup();
+  // 本週各部位組數（近 4 週有練才顯示，避免剛開始用或很久沒練時一排 0）
+  const recentlyActive = sessions.some((s) => s.date >= addDays(weekStart, -21));
+  const weekSets = setsByBodyPart(
+    sessions.filter((s) => s.date >= weekStart && s.date < nextWeekStart),
+    (id) => repo.getExercise(id),
+  );
+  const targets = repo.getSetTargets();
 
   /** 一次訓練的動作名稱與練到的部位 */
   const describe = (exerciseIds: string[]) => {
@@ -54,6 +62,36 @@ export function LogPage() {
           {...(lastWeekVolume > 0 ? { hint: `上週 ${volumeText(lastWeekVolume)} ${unitLabel(unit)}` } : {})}
         />
       </div>
+
+      {recentlyActive && (
+        <a href="#/charts/volume" class="week-sets" aria-label="本週各部位組數，點一下看詳細">
+          <span class="week-sets-head">
+            <span>本週組數 / 目標下限</span>
+            <span>詳細 ›</span>
+          </span>
+          <span class="week-sets-grid">
+            {BODY_PARTS.map((p) => {
+              const t = targets[p];
+              const n = weekSets[p];
+              const status = targetStatus(n, t);
+              return (
+                <span key={p} class={`week-sets-cell is-${status}`}>
+                  <span>{BODY_PART_LABELS[p]}</span>
+                  <span>
+                    <span class="num">{n}</span>
+                    {status !== 'none' && <span class="muted">/{t.min}</span>}
+                  </span>
+                  {status !== 'none' && (
+                    <span class="week-sets-mini" aria-hidden="true">
+                      <span style={{ width: `${Math.min(100, (n / t.min) * 100)}%` }} />
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </span>
+        </a>
+      )}
 
       <CloudBanner />
 

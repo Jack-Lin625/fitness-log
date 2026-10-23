@@ -50,3 +50,17 @@ export function volumeByBodyPart(
 export function formatVolume(kg: number): string {
   return Math.round(kg).toLocaleString('en-US');
 }
+
+/** 每個部位的正式組數（自體重量動作也算得到，彌補容量的盲點） */
+export function setsByBodyPart(
+  sessions: WorkoutSession[],
+  getExercise: (id: string) => Exercise | undefined,
+): Record<BodyPart, number> {
+  const result = Object.fromEntries(BODY_PARTS.map((p) => [p, 0])) as Record<BodyPart, number>;
+  for (const s of sessions)
+    for (const ex of s.exercises) {
+      const part = getExercise(ex.exerciseId)?.bodyPart;
+      if (part) result[part] += ex.sets.filter((x) => !x.isWarmup).length;
+    }
+  return result;
+}

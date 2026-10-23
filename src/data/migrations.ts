@@ -1,4 +1,5 @@
 import { STORED_METRICS } from '../lib/bodyMetrics';
+import { isValidTarget } from '../lib/setTargets';
 import { DEFAULT_MUSCLES, EQUIPMENT_LABELS, MUSCLE_LABELS } from './catalog';
 import {
   BODY_PARTS,
@@ -279,6 +280,14 @@ function normalizeSettings(v: unknown): Settings {
     const rest: Record<string, number> = {};
     for (const [id, sec] of Object.entries(v.restByExercise)) if (positive(sec)) rest[id] = sec;
     if (Object.keys(rest).length > 0) s.restByExercise = rest;
+  }
+  if (isRecord(v.setTargets)) {
+    const targets: NonNullable<Settings['setTargets']> = {};
+    for (const part of BODY_PARTS) {
+      const t = v.setTargets[part];
+      if (isValidTarget(t)) targets[part] = { min: t.min, max: t.max };
+    }
+    if (Object.keys(targets).length > 0) s.setTargets = targets;
   }
   return s;
 }

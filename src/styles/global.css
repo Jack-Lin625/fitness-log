@@ -3299,3 +3299,173 @@ body:has(.rest-bar) .page-editor {
 .compare-pick .select {
   width: 100%;
 }
+
+/* ───────── 每週組數目標 ───────── */
+.target-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.target-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'name count status'
+    'bar bar bar';
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 10px 0;
+}
+
+.target-row + .target-row {
+  border-top: 1px solid var(--line);
+}
+
+.target-name {
+  grid-area: name;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+.target-count {
+  grid-area: count;
+  font-size: 14px;
+}
+
+.target-count .num {
+  font-size: 20px;
+}
+
+.target-status {
+  grid-area: status;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.target-row.is-ok .target-status {
+  color: var(--part-shoulders);
+}
+
+.target-row.is-low .target-status {
+  color: var(--ink);
+}
+
+.target-row.is-high .target-status {
+  color: var(--pr);
+}
+
+.target-bar {
+  grid-area: bar;
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.target-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--part-shoulders) 28%, transparent);
+}
+
+.target-fill {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.target-edit {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.target-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.target-switch {
+  gap: 8px;
+  min-height: 40px;
+}
+
+.target-edit-range {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+/* 紀錄頁的本週組數摘要 */
+.week-sets {
+  display: block;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.week-sets-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.week-sets-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  text-align: center;
+}
+
+.week-sets-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.week-sets-cell .num {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.week-sets-cell.is-ok .num {
+  color: var(--part-shoulders);
+}
+
+.week-sets-cell.is-high .num {
+  color: var(--pr);
+}
+
+.week-sets-mini {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.week-sets-mini > span {
+  display: block;
+  height: 100%;
+  background: var(--part-shoulders);
+}
