@@ -3587,3 +3587,69 @@ body:has(.rest-bar) .page-editor {
 .template-last {
   color: var(--ink);
 }
+
+/* ───────── 上週回顧、搜尋歷史紀錄 ───────── */
+.review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+}
+
+.review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.review-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  margin: 0;
+}
+
+.review-list dt {
+  color: var(--muted);
+  font-size: 15px;
+  padding-top: 2px;
+}
+
+.review-list dd {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.review-list .num {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.review-records {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.session-notes {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-size: 14px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-top: 4px;
+}
