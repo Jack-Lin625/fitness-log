@@ -9,6 +9,7 @@ import { addDays, formatDateLabel, todayString } from '../lib/date';
 import { formatSetShort } from '../lib/draft';
 import { exerciseHistory } from '../lib/exerciseHistory';
 import { formatNumber } from '../lib/number';
+import { canCheck } from '../lib/formCheck/profiles';
 import { findPlateaus, PLATEAU_TIPS } from '../lib/plateau';
 import { computeRecords, type RecordKind } from '../lib/records';
 import { bestRelativeOf, formatRatio, weighIns } from '../lib/relativeStrength';
@@ -95,6 +96,11 @@ export function ExerciseHistory({ exerciseId, linkSessions = true }: { exerciseI
           {!traits.bodyweight && record?.bestE1rm && (
             <a href={`#/charts/trend/${encodeURIComponent(exerciseId)}`} class="btn btn-secondary btn-block btn-link">
               看估算 1RM 趨勢圖
+            </a>
+          )}
+          {linkSessions && canCheck(exerciseId) && (
+            <a href={`#/tools/form/${encodeURIComponent(exerciseId)}`} class="btn btn-secondary btn-block btn-link">
+              錄影檢查姿勢
             </a>
           )}
 

@@ -1,28 +1,16 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { analyzeForm } from '../../lib/formCheck/analyze';
-import { LM, type PoseFrame } from '../../lib/formCheck/track';
-import type { FormAnalysis, FormExercise, RepResult } from '../../lib/formCheck/types';
-import { ANALYSIS_FPS, detectVideo, MAX_SECONDS, type Progress } from '../../lib/poseDetector';
+import { navigate } from '../../hooks/useHashRoute';
+import { useRepository } from '../../hooks/useRepository';
 import { errorMessage } from '../../lib/errors';
+import { analyzeForm } from '../../lib/formCheck/analyze';
+import { canCheck, filmingTips, PATTERN_CHECKS, profileOf } from '../../lib/formCheck/profiles';
+import { LM, type PoseFrame } from '../../lib/formCheck/track';
+import type { FormAnalysis, RepResult } from '../../lib/formCheck/types';
+import { ANALYSIS_FPS, detectVideo, MAX_SECONDS, type Progress } from '../../lib/poseDetector';
+import { BODY_PARTS, BODY_PART_LABELS } from '../../types/models';
 
-const EXERCISES: { id: FormExercise; label: string }[] = [
-  { id: 'squat', label: '深蹲' },
-  { id: 'deadlift', label: '硬舉' },
-];
-
-const TIPS: Record<FormExercise, string[]> = {
-  squat: [
-    '手機放在約膝蓋高度、離你 2–3 公尺，全身（包含腳）都要在畫面裡',
-    '從正側面拍：看深度、軀幹角度、腳跟',
-    '從正前方拍：看膝蓋有沒有內夾、左右平不平均',
-    '一段影片錄一組就好（最多 90 秒），從站著開始錄',
-  ],
-  deadlift: [
-    '手機放在約膝蓋高度、離你 2–3 公尺，全身和槓片都要在畫面裡',
-    '一定要從正側面拍（鏡頭對著身體側面）',
-    '從槓在地上開始錄，一段影片錄一組就好（最多 90 秒）',
-  ],
-};
+/** 常用的動作排在選單最上面 */
+const QUICK = ['squat', 'deadlift', 'romanian-deadlift', 'overhead-press', 'push-up', 'pull-up', 'barbell-row', 'db-curl'];
 
 /** 骨架的連線 */
 const BONES: [number, number][] = [
@@ -62,11 +50,15 @@ function progressText(p: Progress | null): { text: string; ratio: number } {
 }
 
 /** 動作檢查：錄一段影片，偵測關節位置，找出每一下的問題 */
-export function FormCheck() {
-  const [exercise, setExercise] = useState<FormExercise>('squat');
+export function FormCheck({ exerciseId }: { exerciseId: string | undefined }) {
+  const repo = useRepository();
+  const exercise = repo.getExercise(exerciseId ?? '') ?? repo.getExercise('squat')!;
+  const profile = profileOf(exercise.id);
+  const supported = canCheck(exercise.id);
   const [state, setState] = useState<State>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const all = repo.getExercises();
 
   // 離開頁面時停止分析、釋放影片
   useEffect(
@@ -87,7 +79,7 @@ export function FormCheck() {
     setState({ kind: 'working', progress: null });
     try {
       const detected = await detectVideo(file, (progress) => setState({ kind: 'working', progress }), abort.signal);
-      const analysis = analyzeForm(exercise, detected.frames, { width: detected.width, height: detected.height });
+      const analysis = analyzeForm(exercise.id, detected.frames, { width: detected.width, height: detected.height });
       setState({ kind: 'done', analysis, frames: detected.frames, videoUrl: URL.createObjectURL(file) });
     } catch (err) {
       if (abort.signal.aborted) setState({ kind: 'idle' });
@@ -133,7 +125,7 @@ export function FormCheck() {
   if (state.kind === 'done') {
     return (
       <div class="tool">
-        <FormResult analysis={state.analysis} frames={state.frames} videoUrl={state.videoUrl} />
+        <FormResult analysis={state.analysis} frames={state.frames} videoUrl={state.videoUrl} name={exercise.name} />
         {picker}
         <button type="button" class="btn btn-ghost btn-block" onClick={() => setState({ kind: 'idle' })}>
           看拍攝方式
@@ -144,33 +136,63 @@ export function FormCheck() {
 
   return (
     <div class="tool">
-      <div class="segmented" role="radiogroup" aria-label="動作">
-        {EXERCISES.map((e) => (
-          <button
-            key={e.id}
-            type="button"
-            role="radio"
-            aria-checked={exercise === e.id}
-            class={exercise === e.id ? 'segment is-active' : 'segment'}
-            onClick={() => setExercise(e.id)}
-          >
-            {e.label}
-          </button>
-        ))}
-      </div>
+      <label class="field">
+        <span class="field-label">動作</span>
+        <select
+          class="input select"
+          value={exercise.id}
+          onChange={(e) => {
+            setState({ kind: 'idle' });
+            navigate(`/tools/form/${encodeURIComponent(e.currentTarget.value)}`);
+          }}
+        >
+          <optgroup label="常用">
+            {QUICK.map((id) => {
+              const e = repo.getExercise(id);
+              return e ? (
+                <option key={`q-${id}`} value={id}>
+                  {e.name}
+                </option>
+              ) : null;
+            })}
+          </optgroup>
+          {BODY_PARTS.map((part) => (
+            <optgroup key={part} label={BODY_PART_LABELS[part]}>
+              {all
+                .filter((e) => e.bodyPart === part)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
 
       {state.kind === 'error' && <p class="note note-warn">{state.message}</p>}
 
-      <section class="form-tips">
-        <h2>怎麼拍</h2>
-        <ul>
-          {TIPS[exercise].map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ul>
-      </section>
-
-      {picker}
+      {supported ? (
+        <>
+          <section class="form-tips">
+            <h2>會檢查</h2>
+            <ul>
+              {PATTERN_CHECKS[profile.pattern].map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+            <h2>怎麼拍</h2>
+            <ul>
+              {filmingTips(profile).map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </section>
+          {picker}
+        </>
+      ) : (
+        <p class="note note-warn">這個動作只有手腕在動，幅度太小，影片偵測不到（關節點沒有手腕的彎曲），沒辦法檢查。</p>
+      )}
 
       <p class="note">
         {`用 AI 偵測影片裡的關節位置，量出每一下的角度和速度，找出常見的問題。影片只在這支手機裡分析，不會上傳。` +
@@ -182,7 +204,17 @@ export function FormCheck() {
 }
 
 /** 分析結果：影片＋骨架、問題彙整、每一下的數據 */
-function FormResult({ analysis, frames, videoUrl }: { analysis: FormAnalysis; frames: PoseFrame[]; videoUrl: string }) {
+function FormResult({
+  analysis,
+  frames,
+  videoUrl,
+  name,
+}: {
+  analysis: FormAnalysis;
+  frames: PoseFrame[];
+  videoUrl: string;
+  name: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [current, setCurrent] = useState<number | null>(null);
@@ -256,7 +288,7 @@ function FormResult({ analysis, frames, videoUrl }: { analysis: FormAnalysis; fr
         <>
           <section class="form-summary" aria-label="結果">
             <h2>
-              {analysis.exercise === 'squat' ? '深蹲' : '硬舉'} {analysis.reps.length} 下
+              {name} {analysis.pattern === 'hold' ? '' : `${analysis.reps.length} 下`}
               {analysis.view === 'front' ? '（正面）' : analysis.view === 'side' ? '（側面）' : ''}
             </h2>
             {analysis.summary.filter((s) => s.level === 'warn').length === 0 && (

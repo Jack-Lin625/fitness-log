@@ -3847,3 +3847,7 @@ body:has(.rest-bar) .page-editor {
 .form-metrics dd {
   margin: 0;
 }
+
+.form-tips ul + h2 {
+  margin-top: 12px;
+}

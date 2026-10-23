@@ -18,7 +18,7 @@ const TABS: { id: Tab; label: string }[] = [
 type FormCheckComponent = typeof import('../components/tools/FormCheck').FormCheck;
 
 /** 姿勢檢查的程式只在打開這個分頁時才下載 */
-function LazyFormCheck() {
+function LazyFormCheck({ exerciseId }: { exerciseId: string | undefined }) {
   const [Comp, setComp] = useState<FormCheckComponent | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -26,12 +26,13 @@ function LazyFormCheck() {
       .then((m) => setComp(() => m.FormCheck))
       .catch(() => setFailed(true));
   }, []);
-  if (Comp) return <Comp />;
+  // 換動作時重新開始（清掉上一個動作的結果）
+  if (Comp) return <Comp key={exerciseId ?? ""} exerciseId={exerciseId} />;
   return <p class="muted">{failed ? '載入失敗，請確認網路後再試' : '載入中…'}</p>;
 }
 
 /** 計算工具頁；目前分頁記在網址上（#/tools/1rm），重新整理也會停在同一頁 */
-export function ToolsPage({ tab }: { tab: string | undefined }) {
+export function ToolsPage({ tab, param }: { tab: string | undefined; param?: string | undefined }) {
   const current: Tab = tab === '1rm' || tab === 'stretch' || tab === 'warmup' || tab === 'form' ? tab : 'plates';
 
   return (
@@ -54,7 +55,7 @@ export function ToolsPage({ tab }: { tab: string | undefined }) {
       {current === '1rm' && <OneRepMaxTool />}
       {current === 'warmup' && <WarmupSetup />}
       {current === 'stretch' && <StretchSetup />}
-      {current === 'form' && <LazyFormCheck />}
+      {current === 'form' && <LazyFormCheck exerciseId={param} />}
     </>
   );
 }

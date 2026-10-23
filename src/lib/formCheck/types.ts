@@ -1,7 +1,6 @@
 /** 動作檢查的結果 */
+import type { Pattern } from './profiles';
 import type { Rep, View } from './track';
-
-export type FormExercise = 'squat' | 'deadlift';
 
 export interface Issue {
   /** 問題種類（彙整用），例如 'shallow' */
@@ -37,7 +36,9 @@ export interface IssueSummary {
 }
 
 export interface FormAnalysis {
-  exercise: FormExercise;
+  /** 動作 id */
+  exercise: string;
+  pattern: Pattern;
   view: View;
   reps: RepResult[];
   summary: IssueSummary[];
