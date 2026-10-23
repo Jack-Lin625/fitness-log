@@ -85,6 +85,10 @@ export interface NutritionPlan {
   formula: 'mifflin' | 'katch';
   bmr: number;
   tdee: number;
+  /** TDEE 的來源：公式估計，或由飲食與體重紀錄推算 */
+  tdeeSource: 'formula' | 'measured';
+  /** 公式估計的 TDEE（用推算值時拿來比較） */
+  formulaTdee: number;
   /** 每日目標熱量 */
   target: number;
   /** 減脂目標低於基礎代謝，已拉高到基礎代謝 */
@@ -99,7 +103,15 @@ export interface NutritionPlan {
 
 const round10 = (v: number) => Math.round(v / 10) * 10;
 
-export function nutritionPlan(profile: NutritionProfile, body: BodyInput, today: Date = new Date()): NutritionPlan {
+/**
+ * measuredTdee：由紀錄推算的 TDEE（lib/adaptiveTdee.ts）；使用者選擇採用、且有算出來時取代公式估計。
+ */
+export function nutritionPlan(
+  profile: NutritionProfile,
+  body: BodyInput,
+  today: Date = new Date(),
+  measuredTdee?: number,
+): NutritionPlan {
   const age = ageFromBirthYear(profile.birthYear, today);
   const useKatch = body.bodyFatPct !== undefined;
   const bmr = round10(
@@ -109,7 +121,9 @@ export function nutritionPlan(profile: NutritionProfile, body: BodyInput, today:
   );
   const activity = ACTIVITY_OPTIONS.find((a) => a.id === profile.activity) ?? ACTIVITY_OPTIONS[0]!;
   const goal = GOAL_OPTIONS.find((g) => g.id === profile.goal) ?? GOAL_OPTIONS[1]!;
-  const tdee = round10(bmr * activity.factor);
+  const formulaTdee = round10(bmr * activity.factor);
+  const useMeasured = profile.useMeasuredTdee === true && measuredTdee !== undefined;
+  const tdee = useMeasured ? round10(measuredTdee) : formulaTdee;
 
   const raw = round10(tdee * goal.factor);
   const raisedToBmr = raw < bmr;
@@ -123,6 +137,8 @@ export function nutritionPlan(profile: NutritionProfile, body: BodyInput, today:
     formula: useKatch ? 'katch' : 'mifflin',
     bmr,
     tdee,
+    tdeeSource: useMeasured ? 'measured' : 'formula',
+    formulaTdee,
     target,
     raisedToBmr,
     protein,

@@ -11,6 +11,7 @@ import { useRepository } from '../hooks/useRepository';
 import type { DraftExercise, DraftSet, Exercise, WeightUnit, WorkoutSet } from '../types/models';
 import { EQUIPMENT_LABELS, MUSCLE_LABELS } from '../data/catalog';
 import { EquipmentIcon } from './EquipmentIcon';
+import { ExerciseHistorySheet } from './ExerciseHistory';
 import { LazyGuideSheet } from './LazyGuideSheet';
 import { showToast } from './Toast';
 
@@ -69,6 +70,7 @@ export function ExerciseCard(props: Props) {
   const [openSet, setOpenSet] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const repo = useRepository();
   const isBodyweight = exercise?.isBodyweight ?? false;
   const assisted = exercise?.assisted === true;
@@ -251,6 +253,18 @@ export function ExerciseCard(props: Props) {
               {hasWarmups ? '重新計算熱身組' : '加入熱身組'}
             </button>
           )}
+          {exercise && last && (
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onClick={() => {
+                setHistoryOpen(true);
+                setMenuOpen(false);
+              }}
+            >
+              歷史紀錄
+            </button>
+          )}
           {!showNote && (
             <button
               type="button"
@@ -316,6 +330,9 @@ export function ExerciseCard(props: Props) {
           上次 {formatDateLabel(last.date)}：
           <span class="num">{lastWorking.map((s) => formatSetShort(s, isBodyweight, assisted, unit)).join('、')}</span>
           {hasCustomRest && <span class="muted">｜休息 {formatDuration(restSeconds)}</span>}
+          <button type="button" class="btn-text ex-last-more" onClick={() => setHistoryOpen(true)}>
+            全部 ›
+          </button>
         </p>
       )}
       {!showNote && last?.note && <p class="ex-last ex-last-note">備註：{last.note}</p>}
@@ -439,6 +456,7 @@ export function ExerciseCard(props: Props) {
         )}
       </div>
       {guideOpen && exercise && <LazyGuideSheet exercise={exercise} onClose={() => setGuideOpen(false)} />}
+      {historyOpen && exercise && <ExerciseHistorySheet exerciseId={exercise.id} onClose={() => setHistoryOpen(false)} />}
     </article>
   );
 }

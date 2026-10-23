@@ -37,6 +37,8 @@ describe('nutritionPlan', () => {
       formula: 'mifflin',
       bmr: 1650,
       tdee: 2560,
+      tdeeSource: 'formula',
+      formulaTdee: 2560,
       target: 2560,
       raisedToBmr: false,
       protein: 112,
@@ -111,5 +113,21 @@ describe('mealForHour', () => {
     [3, 'snack'],
   ] as const)('%i 點 → %s', (hour, meal) => {
     expect(mealForHour(hour)).toBe(meal);
+  });
+});
+
+describe('nutritionPlan：採用推算的 TDEE', () => {
+  const p = { sex: 'male', birthYear: 1996, heightCm: 175, activity: 'moderate', goal: 'cut' } as const;
+  const body = { weightKg: 70, weightDate: '2026-06-01' };
+  const TODAY2 = new Date(2026, 5, 1);
+
+  it('選擇採用且有推算值時，用推算值計算目標；公式值保留比較', () => {
+    const plan = nutritionPlan({ ...p, useMeasuredTdee: true }, body, TODAY2, 2804);
+    expect(plan).toMatchObject({ tdee: 2800, tdeeSource: 'measured', formulaTdee: 2560, target: 2240 });
+  });
+
+  it('沒選擇採用、或推算值還算不出來時，用公式', () => {
+    expect(nutritionPlan(p, body, TODAY2, 2800)).toMatchObject({ tdee: 2560, tdeeSource: 'formula' });
+    expect(nutritionPlan({ ...p, useMeasuredTdee: true }, body, TODAY2)).toMatchObject({ tdee: 2560, tdeeSource: 'formula' });
   });
 });

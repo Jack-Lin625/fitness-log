@@ -52,7 +52,15 @@ export function PrWall() {
           <li key={r.exerciseId} class="pr-card">
             <header class="pr-head">
               {ex && <span class={`part-dot part-${ex.bodyPart}`} aria-hidden="true" />}
-              <h2>{ex?.name ?? '已刪除的動作'}</h2>
+              <h2>
+                {ex ? (
+                  <a href={`#/charts/exercise/${encodeURIComponent(ex.id)}`} class="ex-link">
+                    {ex.name}
+                  </a>
+                ) : (
+                  '已刪除的動作'
+                )}
+              </h2>
               {isNew && <span class="tag tag-pr">近 {NEW_DAYS} 天新紀錄</span>}
             </header>
 

@@ -192,6 +192,10 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
         />
       )}
 
+      <a href={`#/charts/exercise/${encodeURIComponent(selected.id)}`} class="btn btn-secondary btn-block btn-link">
+        看{selected.name}的每一次紀錄
+      </a>
+
       <p class="note">估算 1RM 使用 Epley 公式，只採計 1–10 下的正式組。自體重量動作請看 PR 牆的次數紀錄。</p>
     </div>
   );
