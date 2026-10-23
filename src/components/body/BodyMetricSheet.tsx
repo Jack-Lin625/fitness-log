@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { deleteWithUndo } from '../../actions/undo';
 import { confirmDialog } from '../Dialog';
 import { showToast } from '../Toast';
 import { useRepository } from '../../hooks/useRepository';
@@ -106,15 +107,13 @@ export function BodyMetricSheet({ initial, onClose }: Props) {
 
   const remove = async () => {
     if (!editing) return;
-    const ok = await confirmDialog({ title: '刪除這筆體態紀錄？', confirmText: '刪除', danger: true });
-    if (!ok) return;
-    try {
-      await repo.deleteBodyMetric(editing.id);
-      showToast('已刪除紀錄');
-      onClose();
-    } catch (err) {
-      showToast(errorMessage(err));
-    }
+    const metric = editing;
+    const ok = await deleteWithUndo({
+      message: '已刪除體態紀錄',
+      remove: () => repo.deleteBodyMetric(metric.id),
+      restore: () => repo.saveBodyMetric(metric),
+    });
+    if (ok) onClose();
   };
 
   return (

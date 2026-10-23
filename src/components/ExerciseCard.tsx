@@ -11,8 +11,7 @@ import { useRepository } from '../hooks/useRepository';
 import type { DraftExercise, DraftSet, Exercise, WeightUnit, WorkoutSet } from '../types/models';
 import { EQUIPMENT_LABELS, MUSCLE_LABELS } from '../data/catalog';
 import { EquipmentIcon } from './EquipmentIcon';
-import { ExerciseGuideSheet } from './ExerciseGuideSheet';
-import { hasGuide } from '../data/exerciseGuides';
+import { LazyGuideSheet } from './LazyGuideSheet';
 import { showToast } from './Toast';
 
 /** 休息時間的選項（秒） */
@@ -217,7 +216,8 @@ export function ExerciseCard(props: Props) {
             </span>
           )}
         </div>
-        {exercise && hasGuide(exercise.id) && (
+        {/* 每個內建動作都有教學（測試會檢查），自訂動作沒有 */}
+        {exercise && !exercise.isCustom && (
           <button type="button" class="guide-btn" onClick={() => setGuideOpen(true)}>
             教學
           </button>
@@ -438,7 +438,7 @@ export function ExerciseCard(props: Props) {
           </button>
         )}
       </div>
-      {guideOpen && exercise && <ExerciseGuideSheet exercise={exercise} onClose={() => setGuideOpen(false)} />}
+      {guideOpen && exercise && <LazyGuideSheet exercise={exercise} onClose={() => setGuideOpen(false)} />}
     </article>
   );
 }

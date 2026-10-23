@@ -178,3 +178,50 @@ describe('CloudBackup', () => {
     expect(localStorage.getItem('fitlog:cloud')).toBeNull();
   });
 });
+
+describe('CloudBackup.refreshOnTap（按「完成」時順便更新授權）', () => {
+  beforeEach(() => storage.reset());
+  afterEach(() => vi.useRealTimers());
+
+  it('授權過期時，在按下的當下就開啟 Google 視窗（不能等任何 await，否則瀏覽器會擋），之後自動上傳', async () => {
+    vi.useFakeTimers();
+    const { cloud, repo, drive, deps } = await setup([workout('a')]);
+    await cloud.connect();
+    vi.setSystemTime(Date.now() + 2 * 3_600_000);
+    vi.mocked(deps.requestToken).mockClear();
+    drive.uploadBackup.mockClear();
+
+    cloud.refreshOnTap();
+    // 同步呼叫：還沒經過任何 await
+    expect(deps.requestToken).toHaveBeenCalledTimes(1);
+    expect(deps.requestToken).toHaveBeenCalledWith(false);
+
+    await repo.saveSession(workout('b'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(drive.uploadBackup).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(drive.file!.content).sessions).toHaveLength(2);
+  });
+
+  it('授權還有效、沒開雲端備份、或有待決定的事時不開視窗', async () => {
+    const { cloud, deps } = await setup([workout('a')]);
+    cloud.refreshOnTap(); // 還沒連線
+    expect(deps.requestToken).not.toHaveBeenCalled();
+    await cloud.connect();
+    vi.mocked(deps.requestToken).mockClear();
+    cloud.refreshOnTap(); // 授權還有效
+    expect(deps.requestToken).not.toHaveBeenCalled();
+  });
+
+  it('使用者關掉視窗時不丟出錯誤，資料仍標記為未上傳', async () => {
+    vi.useFakeTimers();
+    const { cloud, repo, deps } = await setup([workout('a')]);
+    await cloud.connect();
+    vi.setSystemTime(Date.now() + 2 * 3_600_000);
+    vi.mocked(deps.requestToken).mockRejectedValueOnce(new Error('已取消 Google 登入'));
+    cloud.refreshOnTap();
+    await repo.saveSession(workout('b'));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(cloud.state.meta.dirty).toBe(true);
+    expect(cloud.state.busy).toBeNull();
+  });
+});

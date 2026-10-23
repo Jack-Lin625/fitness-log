@@ -3054,3 +3054,31 @@ body:has(.rest-bar) .page-editor {
   stroke-width: 9;
   stroke-linecap: round;
 }
+
+.sheet-loading {
+  padding: 32px 16px;
+  text-align: center;
+}
+
+/* 帶「復原」按鈕的提示 */
+.toast-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  padding: 8px 8px 8px 18px;
+}
+
+.toast-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -73,13 +73,24 @@ function loadGis(): Promise<GoogleOAuth2> {
   return loading;
 }
 
+/** 先在背景載入 Google 的授權程式，之後按按鈕時才能「當下」開啟登入視窗 */
+export function preloadGoogleAuth(): void {
+  if (GOOGLE_CLIENT_ID) void loadGis().catch(() => undefined);
+}
+
 /**
  * 取得存取權杖（會開啟 Google 的彈出視窗，必須在使用者按按鈕時呼叫，否則會被瀏覽器擋下）。
+ * 授權程式已經載入時，視窗會在呼叫的當下同步開啟（iPhone 的 Safari 要求這樣才不會擋）；
+ * 還沒載入就先載入再開，這時有些瀏覽器可能會擋下視窗。
  * firstTime：第一次連線要顯示帳號選擇與同意畫面；之後用空白 prompt，已授權就自動關閉。
  */
-export async function requestAccessToken(firstTime: boolean): Promise<AccessToken> {
-  if (!GOOGLE_CLIENT_ID) throw new Error('還沒有設定 Google 用戶端 ID');
-  const oauth2 = await loadGis();
+export function requestAccessToken(firstTime: boolean): Promise<AccessToken> {
+  if (!GOOGLE_CLIENT_ID) return Promise.reject(new Error('還沒有設定 Google 用戶端 ID'));
+  const ready = window.google?.accounts?.oauth2;
+  return ready ? tokenFrom(ready, firstTime) : loadGis().then((oauth2) => tokenFrom(oauth2, firstTime));
+}
+
+function tokenFrom(oauth2: GoogleOAuth2, firstTime: boolean): Promise<AccessToken> {
   return new Promise<AccessToken>((resolve, reject) => {
     const client = oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,

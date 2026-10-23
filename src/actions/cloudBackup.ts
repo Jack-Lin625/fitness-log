@@ -33,6 +33,8 @@ export interface CloudState {
 export interface CloudDeps {
   repo: Repository;
   requestToken: (firstTime: boolean) => Promise<AccessToken>;
+  /** 先在背景載入授權程式（讓之後按按鈕時能立刻開啟登入視窗） */
+  preloadAuth?: () => void;
   revoke: (token: string) => Promise<void>;
   findBackup: (token: string) => Promise<CloudFile | null>;
   uploadBackup: (token: string, json: string, fileId?: string) => Promise<CloudFile>;
@@ -78,7 +80,23 @@ export class CloudBackup {
   start(): void {
     this.snapshot = this.takeSnapshot();
     this.deps.repo.subscribe(() => this.onDataChanged());
+    if (this.state.meta.enabled) this.deps.preloadAuth?.();
     if (this.state.meta.enabled && this.state.meta.dirty) this.scheduleUpload();
+  }
+
+  /**
+   * 使用者按下「完成訓練」這類按鈕時呼叫（必須在按下的當下、任何 await 之前呼叫）。
+   * 授權過期時趁這次按鈕重新取得授權（已授權過的帳號視窗會自動關閉），之後的變更就能自動上傳，
+   * 不必另外按「上傳」。失敗（被擋、使用者關掉視窗）也不打擾，紀錄頁仍會顯示上傳按鈕。
+   */
+  refreshOnTap(): void {
+    const { meta, busy, decision } = this.state;
+    if (!meta.enabled || busy || decision || hasValidToken(meta)) return;
+    if (!this.deps.repo.loadStatus.ok) return;
+    void this.run('upload', async () => {
+      await this.ensureToken();
+      if (this.state.meta.dirty) this.scheduleUpload();
+    }).catch(() => undefined);
   }
 
   // ───────── 使用者操作（都必須由按鈕觸發，因為可能開啟 Google 視窗） ─────────

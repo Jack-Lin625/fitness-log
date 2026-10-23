@@ -6,6 +6,7 @@ import './styles/global.css';
 import { App } from './app';
 import { cloud } from './actions/cloud';
 import { repo } from './data';
+import { loadGuideSheet } from './components/LazyGuideSheet';
 import { loadChart } from './lib/chart';
 
 /** 先載入資料再渲染，避免畫面先閃出空白資料 */
@@ -25,9 +26,13 @@ async function bootstrap() {
       const base = import.meta.env.BASE_URL;
       navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch(() => undefined);
     }
-    // 空閒時預先載入圖表程式，讓離線時圖表頁也能開
+    // 空閒時預先載入圖表與教學的程式，讓離線時也能開
     const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 2000));
-    idle(() => void loadChart());
+    idle(() => {
+      void loadChart();
+      // 教學頁也先在背景下載，第一次打開時不用等
+      void loadGuideSheet().catch(() => undefined);
+    });
   }
 }
 

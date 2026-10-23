@@ -177,3 +177,22 @@ describe('Repository', () => {
     expect(storage.store.size).toBe(0);
   });
 });
+
+describe('Repository：復原刪除', () => {
+  beforeEach(() => storage.reset());
+
+  it('刪除的訓練可以用 saveSession 放回去；封存的自訂動作可以取消封存', async () => {
+    const repo = await freshRepo();
+    const s = workout('a', '2026-10-20', 1, 100);
+    await repo.saveSession(s);
+    await repo.deleteSession('a');
+    await repo.saveSession(s);
+    expect(repo.getSessions().map((x) => x.id)).toEqual(['a']);
+
+    const custom = await repo.addCustomExercise({ name: '測試', bodyPart: 'legs', isBodyweight: false, equipment: 'other' });
+    await repo.archiveCustomExercise(custom.id);
+    await repo.unarchiveCustomExercise(custom.id);
+    expect(repo.getExercises().some((e) => e.id === custom.id)).toBe(true);
+    expect(repo.getExercise(custom.id)).not.toHaveProperty('archived');
+  });
+});
