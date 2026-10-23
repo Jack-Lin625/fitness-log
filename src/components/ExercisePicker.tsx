@@ -9,7 +9,7 @@ import { useRepository } from '../hooks/useRepository';
 import { errorMessage } from '../lib/errors';
 import { BODY_PARTS, BODY_PART_LABELS, type BodyPart, type Equipment, type Exercise } from '../types/models';
 import { EquipmentIcon } from './EquipmentIcon';
-import { hasGuide } from '../data/exerciseGuides';
+import { hasDemo } from '../demos';
 import { showToast } from './Toast';
 
 type PartFilter = 'recent' | 'all' | BodyPart;
@@ -153,7 +153,8 @@ export function ExercisePicker({ usedIds, onPick, onClose }: Props) {
                     {EQUIPMENT_LABELS[e.equipment]}｜{e.primaryMuscles.map((m) => MUSCLE_LABELS[m]).join('、')}
                   </span>
                 </span>
-                {hasGuide(e.id) && <span class="tag tag-accent">示範</span>}
+                {/* 每個內建動作都有教學；只標出有動畫示範的 */}
+                {hasDemo(e.id) && <span class="tag tag-accent">動畫</span>}
                 {e.isCustom && <span class="tag">自訂</span>}
                 {usedIds.includes(e.id) && <span class="tag tag-accent">已加入</span>}
               </button>

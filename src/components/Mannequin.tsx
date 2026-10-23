@@ -20,10 +20,17 @@ const line = (a: Vec, b: Vec) => `M${a.x} ${a.y}L${b.x} ${b.y}`;
 const poly = (...pts: Vec[]) => pts.map((v, i) => `${i ? 'L' : 'M'}${v.x} ${v.y}`).join('');
 
 /** 畫出一個姿勢 */
-function Figure({ pose, guide }: { pose: Pose; guide: { x: number; label: string } | null }) {
+function Figure(props: { pose: Pose; guide: { x: number; label: string } | null; bench: Demo['bench'] }) {
+  const { pose, guide, bench } = props;
   return (
     <>
       <path d="M10 198H190" class="mq-floor" />
+      {bench && (
+        <>
+          <path d={`M${bench.x1 + 8} ${bench.y + 6}V198M${bench.x2 - 8} ${bench.y + 6}V198`} class="mq-bench-leg" />
+          <rect x={bench.x1} y={bench.y} width={bench.x2 - bench.x1} height="8" rx="3" class="mq-bench" />
+        </>
+      )}
       {guide && (
         <>
           <path d={`M${guide.x} 4V198`} class="mq-guide" />
@@ -94,12 +101,13 @@ export function Mannequin({ demo, label }: Props) {
   const phase: Phase = playing ? state.phase : manual > 0.95 ? 'bottom' : manual < 0.05 ? 'top' : 'down';
   const pose = demo.pose(p);
   const guide = guides && demo.guideX ? demo.guideX(pose) : null;
+  const view = demo.view ?? { top: -10, height: 220 };
 
   return (
     <div class="mq">
       <div class="mq-stage">
-        <svg viewBox="0 -10 200 220" role="img" aria-label={`${label}動作示範動畫`}>
-          <Figure pose={pose} guide={guide} />
+        <svg viewBox={`0 ${view.top} 200 ${view.height}`} role="img" aria-label={`${label}動作示範動畫`}>
+          <Figure pose={pose} guide={guide} bench={demo.bench} />
         </svg>
         <p class="mq-caption" aria-live="polite">
           {demo.captions[phase]}
@@ -119,8 +127,8 @@ export function Mannequin({ demo, label }: Props) {
         }}
       />
       <div class="mq-slider-labels" aria-hidden="true">
-        <span>起始</span>
-        <span>最低點</span>
+        <span>{demo.labels?.start ?? '起始'}</span>
+        <span>{demo.labels?.end ?? '最低點'}</span>
       </div>
 
       <div class="mq-controls">

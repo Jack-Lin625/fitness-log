@@ -1,7 +1,14 @@
 /**
- * 動作教學內容：準備姿勢、步驟、重點、常見錯誤與修正、安全提醒
- * 逐步增加；目前先完成深蹲作為樣品。
+ * 動作教學內容：準備姿勢、步驟、重點、常見錯誤與修正、呼吸、安全提醒
+ * 內容依部位分檔放在 data/guides/；每個內建動作都要有教學（有測試檢查）。
  */
+import { ARMS_GUIDES } from './guides/arms';
+import { BACK_GUIDES } from './guides/back';
+import { CHEST_GUIDES } from './guides/chest';
+import { CORE_GUIDES } from './guides/core';
+import { LEGS_GUIDES } from './guides/legs';
+import { SHOULDERS_GUIDES } from './guides/shoulders';
+
 export interface Mistake {
   /** 錯誤是什麼 */
   what: string;
@@ -19,39 +26,13 @@ export interface ExerciseGuide {
 }
 
 export const GUIDES: Record<string, ExerciseGuide> = {
-  squat: {
-    setup: [
-      '在深蹲架裡做，安全槓調到比你蹲到最低時的槓鈴位置再低一點',
-      '槓鈴放在肩膀後方的上斜方肌上，不要壓在脖子的骨頭上',
-      '雙手握槓比肩稍寬，手肘往下指，把槓鈴穩穩卡在背上',
-      '退出架子兩三步就好，雙腳與肩同寬或稍寬，腳尖朝外約 15–30 度',
-    ],
-    steps: [
-      '吸一口氣到肚子，腹部像要被打一拳一樣收緊撐住',
-      '髖和膝同時彎曲，臀部往後往下坐',
-      '蹲到大腿約與地面平行，或你能保持背部不捲起的深度',
-      '整個腳掌往下推地站起來，過了最難的位置後吐氣',
-    ],
-    cues: [
-      '膝蓋和腳尖朝同一個方向',
-      '整個腳掌貼地，重心在腳掌中間',
-      '槓鈴在腳掌中心正上方垂直上下',
-      '背部保持中立，胸口不要往下塌',
-    ],
-    mistakes: [
-      { what: '膝蓋往內夾', fix: '想像用腳把地板往兩側撐開，讓膝蓋跟著腳尖方向' },
-      { what: '腳跟離地，重心跑到腳尖', fix: '臀部往後坐多一點；若還是會，可能是腳踝活動度不足，先加強腳踝熱身' },
-      { what: '起身時臀部先往上衝，變成彎腰早安式', fix: '想著「胸口先起來」，讓胸口和臀部同時上升；重量太重時先減重' },
-      { what: '蹲到底時下背往內捲（俗稱屁股眨眼）', fix: '減少深度到能維持背部中立的位置，同時加強髖部活動度' },
-      { what: '抬頭看天花板或低頭看地板', fix: '眼睛看前方地面約 2–3 公尺處，脖子和背部保持一直線' },
-    ],
-    breathing: '每一下開始前吸氣撐住腹部，蹲下和起身最難的階段都保持撐住，站起來後吐氣再換氣。頭暈時立刻把槓放回架上。',
-    safety: [
-      '一定在有安全槓的深蹲架裡做，或請人在旁邊保護',
-      '撐不起來時，往下蹲把槓放在安全槓上，人往前走出來',
-      '膝蓋或下背出現刺痛，立刻停止',
-    ],
-  },
+  ...CHEST_GUIDES,
+  ...BACK_GUIDES,
+  ...LEGS_GUIDES,
+  ...SHOULDERS_GUIDES,
+  ...ARMS_GUIDES,
+  ...CORE_GUIDES,
 };
 
-export const hasGuide = (exerciseId: string) => exerciseId in GUIDES;
+/** 只認自己的 key（用 in 的話，「toString」這類內建名稱也會被當成有教學） */
+export const hasGuide = (exerciseId: string) => Object.prototype.hasOwnProperty.call(GUIDES, exerciseId);

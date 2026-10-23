@@ -1,17 +1,5 @@
-import { rad, type Demo, type Pose, type Vec } from './types';
-
-/** 身體各段長度（同一個假人比例，之後其他動作共用） */
-export const BODY = {
-  shin: 44,
-  thigh: 46,
-  torso: 56,
-  neck: 9,
-  headR: 10,
-  upperArm: 25,
-  forearm: 23,
-  footBack: 7,
-  footFront: 22,
-};
+import { twoLink } from './kinematics';
+import { BODY, rad, type Demo, type Pose, type Vec } from './types';
 
 const ANKLE: Vec = { x: 96, y: 192 };
 /** 槓鈴相對於肩關節往後的距離（高槓位：放在上斜方肌上） */
@@ -50,9 +38,9 @@ function pose(p: number): Pose {
     y: neck.y + up.y * BODY.headR,
   };
   const bar = { x: shoulder.x + back.x * BAR_BACK - up.x * 2, y: shoulder.y + back.y * BAR_BACK - up.y * 2 };
-  // 手握在槓上，手肘往下指（相對軀幹）
+  // 手握在槓上，手肘往下往後指；用兩節肢體計算，上臂與前臂長度才會固定
   const hand = { x: bar.x + 3, y: bar.y + 1 };
-  const elbow = { x: shoulder.x - up.x * 20 + back.x * 9, y: shoulder.y - up.y * 20 + back.y * 9 };
+  const elbow = twoLink(shoulder, hand, BODY.upperArm, BODY.forearm, (e) => e.y - e.x);
 
   return {
     head,

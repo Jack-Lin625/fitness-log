@@ -2742,3 +2742,13 @@ body:has(.rest-bar) .page-editor {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
+
+.mq-bench {
+  fill: var(--surface-2);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+.mq-bench-leg {
+  stroke: var(--line);
+  stroke-width: 4;
+}

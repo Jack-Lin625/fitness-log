@@ -131,7 +131,7 @@ export function ExerciseCard(props: Props) {
         </div>
         {exercise && hasGuide(exercise.id) && (
           <button type="button" class="guide-btn" onClick={() => setGuideOpen(true)}>
-            示範
+            教學
           </button>
         )}
         <button
