@@ -99,7 +99,13 @@ export function SessionView({ id }: { id: string }) {
                     <EquipmentIcon equipment={exercise.equipment} size={36} labelled />
                   </span>
                 )}
-                {exercise?.name ?? '已刪除的動作'}
+                {exercise ? (
+                  <a href={`#/charts/exercise/${encodeURIComponent(exercise.id)}`} class="ex-link">
+                    {exercise.name}
+                  </a>
+                ) : (
+                  '已刪除的動作'
+                )}
               </h2>
               <span class="view-volume">
                 <span class="num">{formatVolume(toDisplay(exerciseVolume(ex, repo.isAssisted), unit))}</span> {u}

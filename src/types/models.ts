@@ -193,6 +193,8 @@ export interface NutritionProfile {
   heightCm: number;
   activity: ActivityLevel;
   goal: NutritionGoal;
+  /** 用飲食與體重紀錄推算的 TDEE 取代公式估計（資料足夠時才會生效） */
+  useMeasuredTdee?: boolean;
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';

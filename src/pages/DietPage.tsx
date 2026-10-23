@@ -8,8 +8,11 @@ import { PageHeader } from '../components/PageHeader';
 import { useRepository } from '../hooks/useRepository';
 import { addDays, formatDateLabel, todayString } from '../lib/date';
 import { formatNumber } from '../lib/number';
-import { GOAL_OPTIONS, latestBody, nutritionPlan } from '../lib/nutrition';
-import { MEAL_LABELS, MEAL_TYPES, type FoodEntry } from '../types/models';
+import { estimateTdee, MIN_FOOD_DAYS, MIN_WEIGH_INS, WINDOW_DAYS, type AdaptiveTdee } from '../lib/adaptiveTdee';
+import { errorMessage } from '../lib/errors';
+import { GOAL_OPTIONS, latestBody, nutritionPlan, type NutritionPlan } from '../lib/nutrition';
+import { showToast } from '../components/Toast';
+import { MEAL_LABELS, MEAL_TYPES, type FoodEntry, type NutritionProfile } from '../types/models';
 
 const kcalText = (v: number) => Math.round(v).toLocaleString('en-US');
 
@@ -23,8 +26,11 @@ export function DietPage() {
   const [profileOpen, setProfileOpen] = useState(false);
 
   const profile = repo.getNutritionProfile();
-  const body = latestBody(repo.getBodyMetrics());
-  const plan = profile && body ? nutritionPlan(profile, body) : null;
+  const metrics = repo.getBodyMetrics();
+  const body = latestBody(metrics);
+  // 用近 4 週的飲食與體重推算實際 TDEE（資料不夠時 ok 為 false）
+  const measured = estimateTdee(repo.getDailyKcal(), metrics, today);
+  const plan = profile && body ? nutritionPlan(profile, body, new Date(), measured.ok ? measured.tdee : undefined) : null;
   const entries = repo.getFoodEntries(date);
   const eaten = entries.reduce((n, e) => n + e.kcal, 0);
   const macroEaten = (key: 'protein' | 'carbs' | 'fat') => entries.reduce((n, e) => n + (e[key] ?? 0), 0);
@@ -167,7 +173,7 @@ export function DietPage() {
             <dl class="kv kv-plain">
               <dt>目標</dt>
               <dd>{GOAL_OPTIONS.find((g) => g.id === profile.goal)?.label}</dd>
-              <dt>TDEE（每日消耗）</dt>
+              <dt>TDEE（每日消耗）{plan.tdeeSource === 'measured' && <small class="muted">・實際推算</small>}</dt>
               <dd>
                 <span class="num">{kcalText(plan.tdee)}</span> kcal
               </dd>
@@ -203,6 +209,7 @@ export function DietPage() {
               修改 TDEE 設定
             </button>
           </div>
+          <MeasuredTdeeCard estimate={measured} plan={plan} profile={profile} />
         </section>
       )}
 
@@ -214,6 +221,64 @@ export function DietPage() {
 
       {sheets}
     </>
+  );
+}
+
+/** 由實際紀錄推算的 TDEE：資料夠時顯示結果並可以採用，不夠時顯示還缺什麼 */
+function MeasuredTdeeCard(props: { estimate: AdaptiveTdee; plan: NutritionPlan; profile: NutritionProfile }) {
+  const repo = useRepository();
+  const { estimate: e, plan, profile } = props;
+  const using = profile.useMeasuredTdee === true;
+
+  const toggle = async (on: boolean) => {
+    const { useMeasuredTdee: _, ...rest } = profile;
+    try {
+      await repo.saveNutritionProfile(on ? { ...rest, useMeasuredTdee: true } : rest);
+      showToast(on ? '已改用實際推算的 TDEE 設定目標' : '已改回公式估計的 TDEE');
+    } catch (err) {
+      showToast(errorMessage(err));
+    }
+  };
+
+  if (!e.ok) {
+    return (
+      <div class="settings-card measured-card">
+        <strong>用你的紀錄推算真正的 TDEE</strong>
+        <p class="muted small-text">
+          公式估計的 TDEE 個人誤差常有 10–20%。累積 {WINDOW_DAYS} 天內至少 {MIN_FOOD_DAYS} 天的完整飲食紀錄、{MIN_WEIGH_INS} 次以上的體重，
+          就能用「吃了多少」和「體重實際變化」算出你真正的維持熱量。
+        </p>
+        <div class="measured-progress">
+          <span>
+            飲食 <span class="num">{Math.min(e.foodDays, MIN_FOOD_DAYS)}</span>/{MIN_FOOD_DAYS} 天
+          </span>
+          <span>
+            體重 <span class="num">{Math.min(e.weighIns, MIN_WEIGH_INS)}</span>/{MIN_WEIGH_INS} 次
+          </span>
+        </div>
+        <p class="small-text">還需要：{e.missing.join('、')}</p>
+      </div>
+    );
+  }
+
+  const diff = e.tdee - plan.formulaTdee;
+  const change = e.weeklyChangeKg;
+  return (
+    <div class="settings-card measured-card">
+      <strong>
+        依你的紀錄，實際維持熱量約 <span class="num">{kcalText(e.tdee)}</span> kcal
+      </strong>
+      <p class="muted small-text">
+        {formatDateLabel(e.from)}～{formatDateLabel(e.to)}：記錄了 {e.foodDays} 天飲食、平均每天 {kcalText(e.avgIntake)} kcal；
+        量了 {e.weighIns} 次體重，趨勢{change === 0 ? '持平' : `每週${change > 0 ? '增加' : '減少'} ${formatNumber(Math.abs(change))} kg`}。
+        公式估計是 {kcalText(plan.formulaTdee)} kcal（相差 {diff > 0 ? '+' : diff < 0 ? '−' : ''}{kcalText(Math.abs(diff))}）。
+      </p>
+      <label class="switch-row">
+        <span>用這個數字設定每日目標</span>
+        <input type="checkbox" role="switch" class="switch" checked={using} onChange={(ev) => void toggle(ev.currentTarget.checked)} />
+      </label>
+      <p class="muted small-text">沒記到的零食、飲料或熱量估太低，都會讓推算值偏低；請盡量把吃的都記下來。數字每天會隨新紀錄更新。</p>
+    </div>
   );
 }
 

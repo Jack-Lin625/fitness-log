@@ -236,7 +236,9 @@ function normalizeProfile(v: unknown): NutritionProfile | null {
   if (!oneOf(SEXES, sex) || !oneOf(ACTIVITY_LEVELS, activity) || !oneOf(GOALS, goal)) return null;
   if (!isNum(birthYear) || birthYear < 1900 || birthYear > 2100) return null;
   if (!isNum(heightCm) || heightCm < 100 || heightCm > 250) return null;
-  return { sex, birthYear, heightCm, activity, goal };
+  const profile: NutritionProfile = { sex, birthYear, heightCm, activity, goal };
+  if (v.useMeasuredTdee === true) profile.useMeasuredTdee = true;
+  return profile;
 }
 
 /** 飲食紀錄：日期、名稱、熱量必須有效；營養素與照片只留有效值 */

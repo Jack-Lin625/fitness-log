@@ -41,7 +41,17 @@ export function ProfileSheet({ onClose }: { onClose: () => void }) {
   ].filter((e): e is string => e !== null);
 
   const profile: NutritionProfile | null =
-    errors.length === 0 ? { sex, birthYear: by!, heightCm: h!, activity, goal } : null;
+    errors.length === 0
+      ? {
+          sex,
+          birthYear: by!,
+          heightCm: h!,
+          activity,
+          goal,
+          // 是否採用推算的 TDEE 在飲食頁切換，這裡保留原本的選擇
+          ...(repo.getNutritionProfile()?.useMeasuredTdee ? { useMeasuredTdee: true } : {}),
+        }
+      : null;
   // 體重改了就不沿用舊的體脂率（體脂率是相對於當時的體重）
   const sameWeight = body !== null && w === body.weightKg;
   const preview =
