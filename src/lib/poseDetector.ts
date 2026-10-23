@@ -107,6 +107,44 @@ function once(target: HTMLVideoElement, event: string, timeoutMs = 8000): Promis
   });
 }
 
+/**
+ * 等到讀得到影片的長度和大小（之後逐格跳到指定時間時才會讀取每一格的畫面）；讀不到時說明原因。
+ * 不等第一格畫面：iPhone 在低耗電模式下不能自動播放，不播放就不會先讀取畫面。
+ */
+function waitReady(video: HTMLVideoElement, timeoutMs = 20000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      video.removeEventListener('loadedmetadata', ok);
+      video.removeEventListener('loadeddata', ok);
+      video.removeEventListener('error', fail);
+    };
+    const ok = () => {
+      if (video.readyState < 1 || !video.videoWidth) return;
+      cleanup();
+      resolve();
+    };
+    const fail = () => {
+      cleanup();
+      const code = video.error?.code;
+      reject(
+        new Error(
+          code === 4
+            ? '這支手機無法播放這個影片格式。iPhone 可以到「設定 → 相機 → 格式」改成「最相容」後重新錄影。'
+            : '無法讀取這段影片，請換一段試試看',
+        ),
+      );
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('讀取影片太久了，請換一段比較短的影片試試看'));
+    }, timeoutMs);
+    video.addEventListener('loadedmetadata', ok);
+    video.addEventListener('loadeddata', ok);
+    video.addEventListener('error', fail);
+  });
+}
+
 export interface DetectedVideo {
   frames: PoseFrame[];
   width: number;
@@ -123,15 +161,29 @@ export async function detectVideo(
   const detector = await loadDetector(onProgress);
   const url = URL.createObjectURL(file);
   const video = document.createElement('video');
+  // iPhone 的 Safari：要靜音、可以在頁面內播放，而且影片要放在頁面上（看不到也可以）才會讀取畫面
   video.muted = true;
+  video.defaultMuted = true;
+  video.setAttribute('muted', '');
+  video.setAttribute('playsinline', '');
   video.playsInline = true;
   video.preload = 'auto';
-  video.src = url;
+  Object.assign(video.style, {
+    position: 'fixed',
+    left: '0',
+    top: '0',
+    width: '2px',
+    height: '2px',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(video);
   try {
-    await once(video, 'loadeddata').catch(() => {
-      throw new Error('無法讀取這段影片，請換一段試試看');
-    });
-    // iPhone 的 Safari 要先播放一下，之後跳到指定時間才拿得到畫面
+    const ready = waitReady(video);
+    video.src = url;
+    video.load();
+    await ready;
+    // iPhone 的 Safari 播放一下再跳到指定時間比較穩（低耗電模式不能播放也沒關係）
     await video.play().catch(() => undefined);
     video.pause();
     let duration = video.duration;
@@ -162,8 +214,10 @@ export async function detectVideo(
     }
     return { frames, width: video.videoWidth, height: video.videoHeight, duration };
   } finally {
+    video.pause();
     video.removeAttribute('src');
     video.load();
+    video.remove();
     URL.revokeObjectURL(url);
   }
 }
