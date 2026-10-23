@@ -1,4 +1,5 @@
-import type { Equipment } from '../types/models';
+import type { Equipment, WeightUnit } from '../types/models';
+import { LB_BAR } from './units';
 import { calculatePlates } from './plates';
 
 /**
@@ -43,6 +44,21 @@ export function warmupConfig(equipment: Equipment, barWeight: number): { step: n
       // 各種機器、纜繩：配重片通常 5 kg 一格
       return { step: 5, bar: 0 };
   }
+}
+
+/**
+ * 依單位的器材設定（重量都是該單位的數字）。
+ * 磅制：槓鈴 45 lb、每次加 5 lb（兩邊各 2.5 lb）；啞鈴 5 lb 一跳；機器配重片多為 10 lb 一格。
+ */
+export function warmupConfigFor(
+  equipment: Equipment,
+  barWeightKg: number,
+  unit: WeightUnit,
+): { step: number; bar: number } | null {
+  const kg = warmupConfig(equipment, barWeightKg);
+  if (!kg || unit === 'kg') return kg;
+  const bar = kg.bar > 0 ? LB_BAR : 0;
+  return { step: kg.step === 5 ? 10 : 5, bar };
 }
 
 export function warmupLadder(work: number, step: number, bar: number): WarmupSetPlan[] {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkoutSession, WorkoutSet } from '../types/models';
-import { computeRecords, e1rmTrend, findNewRecords, setE1rm } from './records';
+import { computeRecords, e1rmTrend, findNewRecords, setE1rm, setRecordKinds } from './records';
 
 const session = (id: string, date: string, sets: WorkoutSet[], exerciseId = 'squat', createdAt = 0): WorkoutSession => ({
   id,
@@ -92,5 +92,28 @@ describe('e1rmTrend', () => {
       ['2026-10-01', 105, 90],
       ['2026-10-05', 116.7, 110],
     ]);
+  });
+});
+
+describe('setRecordKinds（訓練中即時判斷破紀錄）', () => {
+  const prior = computeRecords([
+    { id: 'a', date: '2026-10-01', createdAt: 1, updatedAt: 1, exercises: [{ exerciseId: 'x', sets: [{ weight: 100, reps: 5 }] }] },
+  ]).get('x');
+  const normal = { bodyweight: false, assisted: false };
+
+  it('重量更重、估算 1RM 更高都算', () => {
+    expect(setRecordKinds({ weight: 102.5, reps: 5 }, prior, normal)).toEqual(['weight', 'e1rm']);
+    expect(setRecordKinds({ weight: 100, reps: 6 }, prior, normal)).toEqual(['e1rm']);
+    expect(setRecordKinds({ weight: 100, reps: 5 }, prior, normal)).toEqual([]);
+  });
+
+  it('第一次做的動作、熱身組、輔助機器的重量不算', () => {
+    expect(setRecordKinds({ weight: 200, reps: 5 }, undefined, normal)).toEqual([]);
+    expect(setRecordKinds({ weight: 200, reps: 5, isWarmup: true }, prior, normal)).toEqual([]);
+    expect(setRecordKinds({ weight: 200, reps: 5 }, prior, { bodyweight: true, assisted: true })).toEqual([]);
+  });
+
+  it('自體重量動作比次數', () => {
+    expect(setRecordKinds({ weight: 0, reps: 6 }, prior, { bodyweight: true, assisted: false })).toEqual(['reps']);
   });
 });

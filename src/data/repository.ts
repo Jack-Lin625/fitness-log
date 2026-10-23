@@ -3,11 +3,14 @@ import type {
   BodyMetric,
   Exercise,
   FoodEntry,
+  FoodFavorite,
   NutritionProfile,
   Settings,
+  WeightUnit,
   WorkoutDraft,
   WorkoutSession,
   WorkoutSet,
+  WorkoutTemplate,
 } from '../types/models';
 import { createId } from '../lib/id';
 import { DEFAULT_MUSCLES } from './catalog';
@@ -19,6 +22,8 @@ import type { StorageAdapter } from './storageAdapter';
 export interface LastPerformance {
   date: string;
   sets: WorkoutSet[];
+  /** 上次留的動作備註（座椅高度、握距等），沒有則為 undefined */
+  note?: string;
 }
 
 /** 啟動時讀取資料的結果，供設定頁與錯誤提示使用 */
@@ -185,9 +190,24 @@ export class Repository {
     for (const session of this.sortedSessions()) {
       if (session.id === excludeSessionId) continue;
       const ex = session.exercises.find((e) => e.exerciseId === exerciseId);
-      if (ex) return { date: session.date, sets: ex.sets };
+      if (ex) {
+        const last: LastPerformance = { date: session.date, sets: ex.sets };
+        // 備註通常是器材設定，最近一次沒寫就往前找
+        const note = ex.note ?? this.lastNote(exerciseId, excludeSessionId);
+        if (note) last.note = note;
+        return last;
+      }
     }
     return null;
+  }
+
+  private lastNote(exerciseId: string, excludeSessionId?: string): string | undefined {
+    for (const session of this.sortedSessions()) {
+      if (session.id === excludeSessionId) continue;
+      const note = session.exercises.find((e) => e.exerciseId === exerciseId && e.note)?.note;
+      if (note) return note;
+    }
+    return undefined;
   }
 
   /** 最近用過的動作 id（新到舊、不重複） */
@@ -208,12 +228,15 @@ export class Repository {
     return this.data.activeDraft;
   }
 
-  async saveDraft(draft: WorkoutDraft): Promise<void> {
-    await this.commit({ ...this.data, activeDraft: draft });
+  /** 只寫入草稿（訓練中頻繁暫存，不重寫全部資料） */
+  async saveDraft(draft: WorkoutDraft | null): Promise<void> {
+    await this.adapter.saveDraft(draft);
+    this.data = { ...this.data, activeDraft: draft };
+    this.listeners.forEach((fn) => fn());
   }
 
   async clearDraft(): Promise<void> {
-    await this.commit({ ...this.data, activeDraft: null });
+    await this.saveDraft(null);
   }
 
   /** 完成訓練：儲存紀錄並清除草稿（同一次寫入，不會只成功一半） */
@@ -223,6 +246,27 @@ export class Repository {
       ? this.data.sessions.map((s) => (s.id === session.id ? session : s))
       : [...this.data.sessions, session];
     await this.commit({ ...this.data, sessions, activeDraft: null });
+  }
+
+  // ───────── 菜單範本 ─────────
+
+  /** 所有範本，依名稱排序 */
+  getTemplates(): WorkoutTemplate[] {
+    return [...this.data.templates].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  }
+
+  getTemplate(id: string): WorkoutTemplate | undefined {
+    return this.data.templates.find((t) => t.id === id);
+  }
+
+  /** 新增或更新範本（依 id 判斷） */
+  async saveTemplate(template: WorkoutTemplate): Promise<void> {
+    const others = this.data.templates.filter((t) => t.id !== template.id);
+    await this.commit({ ...this.data, templates: [...others, template] });
+  }
+
+  async deleteTemplate(id: string): Promise<void> {
+    await this.commit({ ...this.data, templates: this.data.templates.filter((t) => t.id !== id) });
   }
 
   // ───────── 體態 ─────────
@@ -300,10 +344,53 @@ export class Repository {
     await this.commit({ ...this.data, foodEntries: this.data.foodEntries.filter((e) => e.id !== id) });
   }
 
+  /** 常吃的食物，依名稱排序 */
+  getFoodFavorites(): FoodFavorite[] {
+    return [...this.data.foodFavorites].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  }
+
+  /** 同名的常吃食物（名稱是使用者辨識的依據） */
+  getFoodFavoriteByName(name: string): FoodFavorite | undefined {
+    return this.data.foodFavorites.find((f) => f.name === name);
+  }
+
+  /** 新增或更新常吃的食物；同名的會被取代 */
+  async saveFoodFavorite(favorite: FoodFavorite): Promise<void> {
+    const others = this.data.foodFavorites.filter((f) => f.id !== favorite.id && f.name !== favorite.name);
+    await this.commit({ ...this.data, foodFavorites: [...others, favorite] });
+  }
+
+  async deleteFoodFavorite(id: string): Promise<void> {
+    await this.commit({ ...this.data, foodFavorites: this.data.foodFavorites.filter((f) => f.id !== id) });
+  }
+
   // ───────── 設定 ─────────
 
   getSettings(): Settings {
     return this.data.settings;
+  }
+
+  /** 訓練重量的單位 */
+  getWeightUnit(): WeightUnit {
+    return this.data.settings.weightUnit ?? 'kg';
+  }
+
+  /** 某動作的休息秒數：有個別設定用個別設定，否則用預設 */
+  restSecondsFor(exerciseId: string): number {
+    const s = this.data.settings;
+    return s.restByExercise?.[exerciseId] ?? s.defaultRestSeconds;
+  }
+
+  /** 設定某動作的休息秒數；null 代表改回預設 */
+  async setExerciseRest(exerciseId: string, seconds: number | null): Promise<void> {
+    const rest = { ...this.data.settings.restByExercise };
+    if (seconds === null) delete rest[exerciseId];
+    else rest[exerciseId] = seconds;
+    const { restByExercise: _, ...settings } = this.data.settings;
+    await this.commit({
+      ...this.data,
+      settings: Object.keys(rest).length > 0 ? { ...settings, restByExercise: rest } : settings,
+    });
   }
 
   async updateSettings(patch: Partial<Settings>): Promise<void> {

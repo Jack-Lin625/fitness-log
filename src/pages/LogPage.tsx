@@ -1,10 +1,13 @@
 import { useState } from 'preact/hooks';
-import { resumeDraft, startFromSession, startNewWorkout } from '../actions/workout';
+import { backupOverdue, daysSinceBackup, downloadBackup } from '../actions/backup';
+import { deleteTemplate, resumeDraft, startFromSession, startFromTemplate, startNewWorkout } from '../actions/workout';
 import { BigStat } from '../components/BigStat';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
 import { useRepository } from '../hooks/useRepository';
 import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date';
+import { formatSessionDuration } from '../lib/draft';
+import { toDisplay, unitLabel } from '../lib/units';
 import { formatVolume, sessionVolume, volumeBetween } from '../lib/volume';
 import { BODY_PARTS, type BodyPart } from '../types/models';
 
@@ -24,6 +27,10 @@ export function LogPage() {
   const thisWeekCount = sessions.filter((s) => s.date >= weekStart && s.date < nextWeekStart).length;
   const thisWeekVolume = volumeBetween(sessions, weekStart, nextWeekStart, repo.isAssisted);
   const lastWeekVolume = volumeBetween(sessions, lastWeekStart, weekStart, repo.isAssisted);
+  const templates = repo.getTemplates();
+  const unit = repo.getWeightUnit();
+  const volumeText = (kg: number) => formatVolume(toDisplay(kg, unit));
+  const backupDays = daysSinceBackup();
 
   /** 一次訓練的動作名稱與練到的部位 */
   const describe = (exerciseIds: string[]) => {
@@ -40,12 +47,24 @@ export function LogPage() {
       <div class="stat-row">
         <BigStat value={thisWeekCount} unit="次" label="本週訓練" />
         <BigStat
-          value={formatVolume(thisWeekVolume)}
-          unit="kg"
+          value={volumeText(thisWeekVolume)}
+          unit={unitLabel(unit)}
           label="本週訓練容量"
-          {...(lastWeekVolume > 0 ? { hint: `上週 ${formatVolume(lastWeekVolume)} kg` } : {})}
+          {...(lastWeekVolume > 0 ? { hint: `上週 ${volumeText(lastWeekVolume)} ${unitLabel(unit)}` } : {})}
         />
       </div>
+
+      {backupOverdue() && (
+        <div class="backup-banner" role="status">
+          <span>
+            {backupDays === null ? '還沒有備份過' : `已經 ${backupDays} 天沒備份`}
+            <small>資料只存在這支手機，換手機或手機故障就會遺失</small>
+          </span>
+          <button type="button" class="btn btn-secondary btn-sm" onClick={() => void downloadBackup()}>
+            立即備份
+          </button>
+        </div>
+      )}
 
       {draft ? (
         <button type="button" class="resume-card" onClick={resumeDraft}>
@@ -70,6 +89,40 @@ export function LogPage() {
         </div>
       )}
 
+      {!draft && templates.length > 0 && (
+        <section class="section">
+          <h2 class="section-title">我的菜單範本</h2>
+          <ul class="template-list">
+            {templates.map((t) => {
+              const { names, parts } = describe(t.exercises.map((e) => e.exerciseId));
+              return (
+                <li key={t.id} class="template-row">
+                  <button type="button" class="template-start" onClick={() => startFromTemplate(t)}>
+                    <span class="template-name">
+                      {t.name}
+                      <span class="session-parts" aria-hidden="true">
+                        {parts.map((p) => (
+                          <span key={p} class={`part-dot part-${p}`} />
+                        ))}
+                      </span>
+                    </span>
+                    <span class="template-sub">{names.join('、')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    aria-label={`刪除範本「${t.name}」`}
+                    onClick={() => void deleteTemplate(t)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {sessions.length === 0 ? (
         <EmptyState title="還沒有訓練紀錄" body="完成第一次訓練後，紀錄會依日期排列在這裡。" />
       ) : (
@@ -84,7 +137,8 @@ export function LogPage() {
                   <a href={`#/log/view/${s.id}`} class="session-row">
                     <span class="session-date">{formatDateLabel(s.date)}</span>
                     <span class="session-meta">
-                      <span class="num">{formatVolume(sessionVolume(s, repo.isAssisted))}</span> kg
+                      {s.durationSec !== undefined && <>{formatSessionDuration(s.durationSec)}・</>}
+                      <span class="num">{volumeText(sessionVolume(s, repo.isAssisted))}</span> {unitLabel(unit)}
                     </span>
                     <span class="session-names">
                       {sets} 組：{names.join('、')}

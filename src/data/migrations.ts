@@ -12,15 +12,20 @@ import {
   type Equipment,
   type Exercise,
   type FoodEntry,
+  type FoodFavorite,
   MEAL_TYPES,
   type Muscle,
   type NutritionGoal,
   type NutritionProfile,
   type Settings,
+  type SessionExercise,
   type Sex,
   type WorkoutDraft,
   type WorkoutSession,
+  type WorkoutSet,
+  type WorkoutTemplate,
 } from '../types/models';
+import { createId } from '../lib/id';
 
 /** 預設設定 */
 export const DEFAULT_SETTINGS: Settings = {
@@ -42,6 +47,8 @@ export function createEmptyData(): AppData {
     activeDraft: null,
     nutritionProfile: null,
     foodEntries: [],
+    templates: [],
+    foodFavorites: [],
   };
 }
 
@@ -57,6 +64,8 @@ const MIGRATIONS: Record<number, Migration> = {
   2: (d) => ({ ...d, version: 3 }),
   // v3 → v4：新增飲食（TDEE 個人資料、飲食紀錄）
   3: (d) => ({ ...d, version: 4, nutritionProfile: null, foodEntries: [] }),
+  // v4 → v5：新增菜單範本、常吃的食物（動作備註、超級組、訓練時長都是選填欄位）
+  4: (d) => ({ ...d, version: 5, templates: [], foodFavorites: [] }),
 };
 
 export class MigrationError extends Error {
@@ -99,16 +108,64 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isStr = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 
+function isValidExerciseList(v: unknown): v is SessionExercise[] {
+  return (
+    Array.isArray(v) &&
+    v.every(
+      (ex) =>
+        isRecord(ex) &&
+        isStr(ex.exerciseId) &&
+        Array.isArray(ex.sets) &&
+        ex.sets.every((s) => isRecord(s) && isNum(s.weight) && isNum(s.reps)),
+    )
+  );
+}
+
 function isValidSession(v: unknown): v is WorkoutSession {
   if (!isRecord(v) || !isStr(v.id) || typeof v.date !== 'string' || !DATE_RE.test(v.date)) return false;
-  if (!Array.isArray(v.exercises)) return false;
-  return v.exercises.every(
-    (ex) =>
-      isRecord(ex) &&
-      isStr(ex.exerciseId) &&
-      Array.isArray(ex.sets) &&
-      ex.sets.every((s) => isRecord(s) && isNum(s.weight) && isNum(s.reps)),
-  );
+  return isValidExerciseList(v.exercises);
+}
+
+/** 動作的備註、超級組只留有效的字串 */
+function normalizeSessionExercise(ex: SessionExercise): SessionExercise {
+  const result: SessionExercise = { exerciseId: ex.exerciseId, sets: ex.sets.map((s: WorkoutSet) => ({ ...s })) };
+  if (isStr(ex.note)) result.note = ex.note;
+  if (isStr(ex.supersetId)) result.supersetId = ex.supersetId;
+  return result;
+}
+
+function normalizeSession(s: WorkoutSession): WorkoutSession {
+  const { durationSec, ...rest } = s;
+  const session: WorkoutSession = {
+    ...rest,
+    exercises: s.exercises.map(normalizeSessionExercise),
+    // 舊資料可能缺 createdAt/updatedAt，補上 0 讓排序正常
+    createdAt: isNum(s.createdAt) ? s.createdAt : 0,
+    updatedAt: isNum(s.updatedAt) ? s.updatedAt : 0,
+  };
+  if (isNum(durationSec) && durationSec > 0) session.durationSec = durationSec;
+  return session;
+}
+
+function normalizeTemplate(v: unknown): WorkoutTemplate | null {
+  if (!isRecord(v) || !isStr(v.id) || !isStr(v.name) || !isValidExerciseList(v.exercises)) return null;
+  if (v.exercises.length === 0) return null;
+  return {
+    id: v.id,
+    name: v.name,
+    exercises: v.exercises.map(normalizeSessionExercise),
+    createdAt: isNum(v.createdAt) ? v.createdAt : 0,
+  };
+}
+
+function normalizeFoodFavorite(v: unknown): FoodFavorite | null {
+  if (!isRecord(v) || !isStr(v.id) || !isStr(v.name) || !isNum(v.kcal) || v.kcal < 0) return null;
+  const fav: FoodFavorite = { id: v.id, name: v.name, kcal: v.kcal };
+  for (const key of ['protein', 'carbs', 'fat'] as const) {
+    const g = v[key];
+    if (isNum(g) && g >= 0) fav[key] = g;
+  }
+  return fav;
 }
 
 function isValidExercise(v: unknown): v is Exercise {
@@ -204,6 +261,12 @@ function normalizeSettings(v: unknown): Settings {
   if (isNum(v.lastBackupAt)) s.lastBackupAt = v.lastBackupAt;
   if (positive(v.stretchSeconds)) s.stretchSeconds = v.stretchSeconds;
   if (typeof v.stretchRoller === 'boolean') s.stretchRoller = v.stretchRoller;
+  if (v.weightUnit === 'kg' || v.weightUnit === 'lb') s.weightUnit = v.weightUnit;
+  if (isRecord(v.restByExercise)) {
+    const rest: Record<string, number> = {};
+    for (const [id, sec] of Object.entries(v.restByExercise)) if (positive(sec)) rest[id] = sec;
+    if (Object.keys(rest).length > 0) s.restByExercise = rest;
+  }
   return s;
 }
 
@@ -222,6 +285,7 @@ function normalizeDraft(v: unknown): WorkoutDraft | null {
     for (const s of ex.sets) {
       if (!isRecord(s)) return null;
       sets.push({
+        key: isStr(s.key) ? s.key : createId(),
         weight: str(s.weight),
         reps: str(s.reps),
         rpe: str(s.rpe),
@@ -229,7 +293,10 @@ function normalizeDraft(v: unknown): WorkoutDraft | null {
         completed: s.completed === true,
       });
     }
-    exercises.push({ key: ex.key, exerciseId: ex.exerciseId, sets });
+    const exercise: DraftExercise = { key: ex.key, exerciseId: ex.exerciseId, sets };
+    if (typeof ex.note === 'string' && ex.note) exercise.note = ex.note;
+    if (isStr(ex.supersetId)) exercise.supersetId = ex.supersetId;
+    exercises.push(exercise);
   }
   const draft: WorkoutDraft = {
     id: v.id,
@@ -252,16 +319,17 @@ function normalize(data: Record<string, unknown>): AppData {
   return {
     version: CURRENT_DATA_VERSION,
     customExercises: arr<unknown>(data.customExercises, []).filter(isValidExercise).map(withExerciseDefaults),
-    // 舊資料可能缺 createdAt/updatedAt，補上 0 讓排序正常
-    sessions: arr<unknown>(data.sessions, []).filter(isValidSession).map((s) => ({
-      ...s,
-      createdAt: isNum(s.createdAt) ? s.createdAt : 0,
-      updatedAt: isNum(s.updatedAt) ? s.updatedAt : 0,
-    })),
+    sessions: arr<unknown>(data.sessions, []).filter(isValidSession).map(normalizeSession),
     bodyMetrics: arr<unknown>(data.bodyMetrics, []).filter(isValidBodyMetric).map(withValidMetrics),
     settings: normalizeSettings(data.settings),
     activeDraft: normalizeDraft(data.activeDraft),
     nutritionProfile: normalizeProfile(data.nutritionProfile),
     foodEntries: arr<unknown>(data.foodEntries, []).map(normalizeFoodEntry).filter((e): e is FoodEntry => e !== null),
+    templates: arr<unknown>(data.templates, [])
+      .map(normalizeTemplate)
+      .filter((t): t is WorkoutTemplate => t !== null),
+    foodFavorites: arr<unknown>(data.foodFavorites, [])
+      .map(normalizeFoodFavorite)
+      .filter((f): f is FoodFavorite => f !== null),
   };
 }

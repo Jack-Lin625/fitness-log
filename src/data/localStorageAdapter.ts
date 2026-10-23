@@ -1,4 +1,4 @@
-import type { AppData } from '../types/models';
+import type { AppData, WorkoutDraft } from '../types/models';
 import { StorageReadError, StorageWriteError, type StorageAdapter } from './storageAdapter';
 
 const DATA_KEY = 'fitlog:data';
@@ -13,9 +13,22 @@ function backupKeys(): string[] {
     .sort();
 }
 
-/** 以 localStorage 實作的儲存後端 */
+function writeError(err: unknown): StorageWriteError {
+  const isQuota = err instanceof DOMException && err.name === 'QuotaExceededError';
+  return new StorageWriteError(isQuota ? '儲存空間已滿，請先匯出備份並清理舊資料' : '無法寫入本機儲存空間', err);
+}
+
+/**
+ * 以 localStorage 實作的儲存後端。
+ * 目前只在瀏覽器不能用 IndexedDB 時使用，以及讀取舊版存在 localStorage 的資料。
+ * 草稿存在獨立的 key（`<key>:draft`），訓練中暫存不必重寫全部資料。
+ */
 export class LocalStorageAdapter implements StorageAdapter {
-  constructor(private readonly key: string = DATA_KEY) {}
+  private readonly draftKey: string;
+
+  constructor(private readonly key: string = DATA_KEY) {
+    this.draftKey = `${key}:draft`;
+  }
 
   async load(): Promise<unknown> {
     let raw: string | null;
@@ -27,22 +40,41 @@ export class LocalStorageAdapter implements StorageAdapter {
     }
     if (raw === null) return null;
 
+    let data: unknown;
     try {
-      return JSON.parse(raw) as unknown;
+      data = JSON.parse(raw) as unknown;
     } catch (err) {
       throw new StorageReadError('儲存的資料格式損毀，無法解析', err);
     }
+    // 舊版的草稿存在主資料裡；有獨立的草稿 key 時以它為準（損毀就當作沒有草稿）
+    const draftRaw = localStorage.getItem(this.draftKey);
+    if (draftRaw !== null && typeof data === 'object' && data !== null) {
+      let draft: unknown = null;
+      try {
+        draft = JSON.parse(draftRaw);
+      } catch {
+        // 草稿壞掉不影響其他資料
+      }
+      data = { ...data, activeDraft: draft };
+    }
+    return data;
   }
 
   async save(data: AppData): Promise<void> {
+    // 先寫主資料再寫草稿：完成訓練時若第二步失敗，紀錄已經存好，只是草稿還在（再按一次完成會覆蓋同一筆）
     try {
-      localStorage.setItem(this.key, JSON.stringify(data));
+      localStorage.setItem(this.key, JSON.stringify({ ...data, activeDraft: null }));
     } catch (err) {
-      const isQuota = err instanceof DOMException && err.name === 'QuotaExceededError';
-      throw new StorageWriteError(
-        isQuota ? '儲存空間已滿，請先匯出備份並清理舊資料' : '無法寫入本機儲存空間',
-        err,
-      );
+      throw writeError(err);
+    }
+    await this.saveDraft(data.activeDraft);
+  }
+
+  async saveDraft(draft: WorkoutDraft | null): Promise<void> {
+    try {
+      localStorage.setItem(this.draftKey, JSON.stringify(draft));
+    } catch (err) {
+      throw writeError(err);
     }
   }
 
@@ -69,6 +101,7 @@ export class LocalStorageAdapter implements StorageAdapter {
   async clear(): Promise<void> {
     try {
       localStorage.removeItem(this.key);
+      localStorage.removeItem(this.draftKey);
       backupKeys().forEach((k) => localStorage.removeItem(k));
     } catch (err) {
       throw new StorageWriteError('無法清除本機儲存空間', err);
