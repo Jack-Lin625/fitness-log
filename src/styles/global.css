@@ -2990,3 +2990,67 @@ body:has(.rest-bar) .page-editor {
 .cloud-card .button-pair {
   width: 100%;
 }
+
+/* ───────── 假人示範：器材、遠側手腳 ───────── */
+.mq-far {
+  opacity: 0.45;
+}
+
+.mq-pad {
+  stroke: color-mix(in srgb, var(--line) 70%, var(--muted));
+  stroke-linecap: round;
+  fill: none;
+}
+
+.mq-frame {
+  stroke: var(--line);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.mq-cable {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+
+.mq-pulley {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.mq-box {
+  fill: var(--surface-2);
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.mq-band {
+  stroke: var(--part-shoulders);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.mq-weight {
+  fill: var(--accent);
+}
+
+.mq-kb-handle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.mq-db-handle {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.mq-db-end {
+  stroke: var(--accent);
+  stroke-width: 9;
+  stroke-linecap: round;
+}
