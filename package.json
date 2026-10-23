@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "5.1.0",
+    "@mediapipe/tasks-vision": "1.1.0",
     "chart.js": "4.4.6",
     "preact": "10.24.3"
   },

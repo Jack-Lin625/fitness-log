@@ -12,6 +12,13 @@ const VERSION = 'dev';
 const PRECACHE = /*__PRECACHE__*/ [];
 
 const CACHE = `fitlog-${VERSION}`;
+/**
+ * 動作檢查的分析程式與模型（共約 23 MB）：用到時才下載，存在另一個快取，
+ * 部署新版時不會被刪掉（網址含版本號，換版本就是新網址）
+ */
+const POSE_CACHE = 'pose-models-v1';
+const isPoseAsset = (url) =>
+  url.href.startsWith('https://storage.googleapis.com/mediapipe-models/') || url.pathname.includes('/mediapipe/');
 /** 檔案網址都相對於 App 所在的路徑（GitHub Pages 是 /<repo名稱>/） */
 const toUrl = (path) => new URL(path, self.registration.scope).href;
 
@@ -49,6 +56,19 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+
+  if (isPoseAsset(url)) {
+    event.respondWith(
+      caches.open(POSE_CACHE).then(async (cache) => {
+        const hit = await cache.match(request);
+        if (hit) return hit;
+        const res = await fetch(request);
+        if (res.ok) event.waitUntil(cache.put(request, res.clone()));
+        return res;
+      }),
+    );
+    return;
+  }
   if (url.origin !== self.location.origin) return;
 
   // 開啟頁面：網路優先（hash 路由不會送到伺服器，所有頁面都是同一個網址）

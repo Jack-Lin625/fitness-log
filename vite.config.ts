@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
@@ -52,7 +52,45 @@ function serviceWorkerPrecache(): Plugin {
   };
 }
 
+/** 動作檢查用的 MediaPipe 分析程式（wasm） */
+const MEDIAPIPE_DIR = 'node_modules/@mediapipe/tasks-vision/wasm';
+const MEDIAPIPE_VERSION: string = JSON.parse(
+  readFileSync('node_modules/@mediapipe/tasks-vision/package.json', 'utf8'),
+).version;
+const MEDIAPIPE_FILES = [
+  'vision_wasm_internal.js',
+  'vision_wasm_internal.wasm',
+  'vision_wasm_nosimd_internal.js',
+  'vision_wasm_nosimd_internal.wasm',
+];
+
+/**
+ * 把 MediaPipe 的 wasm 放到網站的 mediapipe/<版本>/ 底下（不放進 public，避免 Service Worker 預先下載 26 MB）。
+ * 開發時直接從 node_modules 提供。
+ */
+function mediapipeWasm(): Plugin {
+  const prefix = `/${REPO_NAME}/mediapipe/${MEDIAPIPE_VERSION}/`;
+  return {
+    name: 'fitlog-mediapipe-wasm',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const name = req.url?.startsWith(prefix) ? req.url.slice(prefix.length).split('?')[0] : undefined;
+        if (!name || !MEDIAPIPE_FILES.includes(name)) return next();
+        res.setHeader('Content-Type', name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript');
+        res.end(readFileSync(join(MEDIAPIPE_DIR, name)));
+      });
+    },
+    writeBundle(options) {
+      if (!options.dir) return;
+      const out = join(options.dir, 'mediapipe', MEDIAPIPE_VERSION);
+      mkdirSync(out, { recursive: true });
+      for (const name of MEDIAPIPE_FILES) copyFileSync(join(MEDIAPIPE_DIR, name), join(out, name));
+    },
+  };
+}
+
 export default defineConfig({
   base: `/${REPO_NAME}/`,
-  plugins: [preact(), serviceWorkerPrecache()],
+  define: { __MEDIAPIPE_VERSION__: JSON.stringify(MEDIAPIPE_VERSION) },
+  plugins: [preact(), serviceWorkerPrecache(), mediapipeWasm()],
 });
