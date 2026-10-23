@@ -9,6 +9,7 @@ import { useRepository } from '../hooks/useRepository';
 import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date';
 import { formatSessionDuration } from '../lib/draft';
 import { toDisplay, unitLabel } from '../lib/units';
+import { rotation } from '../lib/rotation';
 import { targetStatus } from '../lib/setTargets';
 import { formatVolume, sessionVolume, setsByBodyPart, volumeBetween } from '../lib/volume';
 import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from '../types/models';
@@ -30,6 +31,9 @@ export function LogPage() {
   const thisWeekVolume = volumeBetween(sessions, weekStart, nextWeekStart, repo.isAssisted);
   const lastWeekVolume = volumeBetween(sessions, lastWeekStart, weekStart, repo.isAssisted);
   const templates = repo.getTemplates();
+  // 菜單輪替：最久沒練的範本排最前面；有兩份以上範本時，第一份就是「今天輪到」
+  const rotated = rotation(templates, sessions);
+  const upNext = rotated.length >= 2 ? rotated[0]! : null;
   const unit = repo.getWeightUnit();
   const volumeText = (kg: number) => formatVolume(toDisplay(kg, unit));
   const backupDays = daysSinceBackup();
@@ -116,8 +120,18 @@ export function LogPage() {
         </button>
       ) : (
         <div class="action-stack">
-          <button type="button" class="btn btn-primary btn-block" onClick={startNewWorkout}>
-            開始今天的訓練
+          {upNext && (
+            <button type="button" class="resume-card next-card" onClick={() => startFromTemplate(upNext.template)}>
+              <span class="resume-sub">今天輪到</span>
+              <span class="resume-title">{upNext.template.name}</span>
+              <span class="resume-sub">
+                {upNext.lastDate ? `上次 ${formatDateLabel(upNext.lastDate)}` : '還沒練過'}・
+                {describe(upNext.template.exercises.map((e) => e.exerciseId)).names.join('、')}
+              </span>
+            </button>
+          )}
+          <button type="button" class={upNext ? 'btn btn-secondary btn-block' : 'btn btn-primary btn-block'} onClick={startNewWorkout}>
+            {upNext ? '開始空白的訓練' : '開始今天的訓練'}
           </button>
           {last && (
             <button type="button" class="btn btn-secondary btn-block btn-two-line" onClick={() => startFromSession(last)}>
@@ -132,9 +146,9 @@ export function LogPage() {
 
       {!draft && templates.length > 0 && (
         <section class="section">
-          <h2 class="section-title">我的菜單範本</h2>
+          <h2 class="section-title">我的菜單範本{rotated.length >= 2 && <small class="muted">（依輪替順序）</small>}</h2>
           <ul class="template-list">
-            {templates.map((t) => {
+            {rotated.map(({ template: t, lastDate }) => {
               const { names, parts } = describe(t.exercises.map((e) => e.exerciseId));
               return (
                 <li key={t.id} class="template-row">
@@ -147,7 +161,9 @@ export function LogPage() {
                         ))}
                       </span>
                     </span>
-                    <span class="template-sub">{names.join('、')}</span>
+                    <span class="template-sub">
+                      <span class="template-last">{lastDate ? `上次 ${formatDateLabel(lastDate)}` : '還沒練過'}</span>・{names.join('、')}
+                    </span>
                   </button>
                   <button
                     type="button"

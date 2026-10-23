@@ -100,6 +100,8 @@ export interface WorkoutSession {
   note?: string;
   /** 訓練時長（秒），從開始訓練到按下完成；補登或修改的紀錄沒有 */
   durationSec?: number;
+  /** 從哪份菜單範本開始的（菜單輪替用） */
+  templateId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -275,6 +277,8 @@ export interface WorkoutDraft {
   startedAt: number;
   /** 有值代表正在修改既有紀錄，而不是新增 */
   editingSessionId?: string;
+  /** 從哪份菜單範本開始的 */
+  templateId?: string;
 }
 
 /** 目前資料格式版本 */

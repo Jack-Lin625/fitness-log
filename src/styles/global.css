@@ -3576,3 +3576,12 @@ body:has(.rest-bar) .page-editor {
   color: var(--pr);
   font-weight: 600;
 }
+
+/* ───────── 菜單輪替 ───────── */
+.next-card .resume-title {
+  font-size: 22px;
+}
+
+.template-last {
+  color: var(--ink);
+}

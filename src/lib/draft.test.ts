@@ -250,3 +250,18 @@ describe('convertDraftUnit', () => {
     expect(convertDraftUnit(lb, 'lb', 'kg').exercises[0]?.sets[0]?.weight).toBe('100.02');
   });
 });
+
+describe('記下從哪份範本開始', () => {
+  it('從範本開始的訓練記下 templateId；修改舊紀錄時保留原本的', () => {
+    const t: WorkoutTemplate = { id: 't1', name: '腿日', createdAt: 0, exercises: [{ exerciseId: 'squat', sets: [{ weight: 100, reps: 5 }] }] };
+    const d = draftFromTemplate(t, () => false);
+    expect(d.templateId).toBe('t1');
+    const { session } = draftToSession(d);
+    expect(session?.templateId).toBe('t1');
+
+    const edited = draftToSession(draftFromSession(session!, 'edit'), session!).session;
+    expect(edited?.templateId).toBe('t1');
+    // 複製上次菜單（不是從範本開始）不記
+    expect(draftToSession(draftFromSession(session!, 'template')).session).not.toHaveProperty('templateId');
+  });
+});

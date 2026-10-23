@@ -140,7 +140,7 @@ function normalizeSessionExercise(ex: SessionExercise): SessionExercise {
 }
 
 function normalizeSession(s: WorkoutSession): WorkoutSession {
-  const { durationSec, ...rest } = s;
+  const { durationSec, templateId, ...rest } = s;
   const session: WorkoutSession = {
     ...rest,
     exercises: s.exercises.map(normalizeSessionExercise),
@@ -149,6 +149,7 @@ function normalizeSession(s: WorkoutSession): WorkoutSession {
     updatedAt: isNum(s.updatedAt) ? s.updatedAt : 0,
   };
   if (isNum(durationSec) && durationSec > 0) session.durationSec = durationSec;
+  if (isStr(templateId)) session.templateId = templateId;
   return session;
 }
 
@@ -330,6 +331,7 @@ function normalizeDraft(v: unknown): WorkoutDraft | null {
     startedAt: isNum(v.startedAt) ? v.startedAt : Date.now(),
   };
   if (isStr(v.editingSessionId)) draft.editingSessionId = v.editingSessionId;
+  if (isStr(v.templateId)) draft.templateId = v.templateId;
   return draft;
 }
 
