@@ -80,3 +80,9 @@ export async function photoUsage(): Promise<{ count: number; bytes: number }> {
   const records = await run<PhotoRecord[]>('readonly', (s) => s.getAll());
   return { count: records.length, bytes: records.reduce((n, r) => n + r.data.byteLength, 0) };
 }
+
+/** 所有照片的 id（雲端同步用，不讀照片內容） */
+export async function listPhotoIds(): Promise<Set<string>> {
+  const ids = await run<IDBValidKey[]>('readonly', (s) => s.getAllKeys());
+  return new Set(ids.map(String));
+}

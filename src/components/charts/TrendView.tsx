@@ -6,6 +6,8 @@ import { useRepository } from '../../hooks/useRepository';
 import { longDate, shortDate, toTime } from '../../lib/chart';
 import { addDays, formatDateLabel, todayString } from '../../lib/date';
 import { computeRecords, e1rmTrend } from '../../lib/records';
+import { bestRelative, formatRatio, relativeTrend, weighIns } from '../../lib/relativeStrength';
+import { formatNumber } from '../../lib/number';
 import { formatWeight, toDisplay, unitLabel } from '../../lib/units';
 import { BODY_PARTS, BODY_PART_LABELS, type Exercise } from '../../types/models';
 import { useState } from 'preact/hooks';
@@ -18,12 +20,15 @@ const RANGES: { id: Range; label: string; days: number | null }[] = [
   { id: 'all', label: '全部', days: null },
 ];
 
+/** 看重量，或看「1RM 是體重的幾倍」 */
+type Mode = 'weight' | 'relative';
 
 /** 單一動作的估算 1RM 趨勢 */
 export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
   const repo = useRepository();
   const sessions = repo.getSessions();
   const [range, setRange] = useState<Range>('6m');
+  const [mode, setMode] = useState<Mode>('weight');
   const unit = repo.getWeightUnit();
   const u = unitLabel(unit);
   /** 圖表上的數值：換成目前單位，取到 0.1 */
@@ -52,8 +57,17 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
   const allPoints = e1rmTrend(sessions, selected.id);
   const days = RANGES.find((r) => r.id === range)?.days ?? null;
   const cutoff = days === null ? '' : addDays(todayString(), -days);
-  const points = allPoints.filter((p) => p.date >= cutoff);
   const record = records.get(selected.id);
+  // 相對力量：每次的估算 1RM ÷ 當時的體重（需要體態頁的體重紀錄）
+  const allRelative = relativeTrend(allPoints, weighIns(repo.getBodyMetrics()));
+  const relative = mode === 'relative' && allRelative.length > 0;
+  const bestRel = bestRelative(allRelative);
+  const latestRel = allRelative[allRelative.length - 1];
+  const weightPoints = allPoints.filter((p) => p.date >= cutoff);
+  const relativePoints = allRelative.filter((p) => p.date >= cutoff);
+  const count = relative ? relativePoints.length : weightPoints.length;
+  const firstDate = (relative ? relativePoints[0]?.date : weightPoints[0]?.date) ?? '';
+  const lastDate = (relative ? relativePoints[count - 1]?.date : weightPoints[count - 1]?.date) ?? '';
 
   return (
     <div class="tool">
@@ -79,22 +93,60 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
         </select>
       </label>
 
-      <div class="stat-row">
-        <BigStat
-          value={record?.bestE1rm ? formatWeight(Math.round(record.bestE1rm.value * 10) / 10, unit) : '–'}
-          unit={u}
-          label="最佳估算 1RM"
-          {...(record?.bestE1rm ? { hint: formatDateLabel(record.bestE1rm.date) } : {})}
-        />
-        <BigStat
-          value={record?.bestWeight ? formatWeight(record.bestWeight.set.weight, unit) : '–'}
-          unit={u}
-          label="最大重量"
-          {...(record?.bestWeight
-            ? { hint: `× ${record.bestWeight.set.reps} 下，${formatDateLabel(record.bestWeight.date)}` }
-            : {})}
-        />
-      </div>
+      {relative ? (
+        <div class="stat-row">
+          <BigStat
+            value={bestRel ? formatRatio(bestRel.ratio) : '–'}
+            unit="倍"
+            label="最佳相對力量"
+            {...(bestRel
+              ? { hint: `體重 ${formatNumber(bestRel.bodyweight)} kg，${formatDateLabel(bestRel.date)}` }
+              : {})}
+          />
+          <BigStat
+            value={latestRel ? formatRatio(latestRel.ratio) : '–'}
+            unit="倍"
+            label="最近一次"
+            {...(latestRel
+              ? { hint: `體重 ${formatNumber(latestRel.bodyweight)} kg，${formatDateLabel(latestRel.date)}` }
+              : {})}
+          />
+        </div>
+      ) : (
+        <div class="stat-row">
+          <BigStat
+            value={record?.bestE1rm ? formatWeight(Math.round(record.bestE1rm.value * 10) / 10, unit) : '–'}
+            unit={u}
+            label="最佳估算 1RM"
+            {...(record?.bestE1rm ? { hint: formatDateLabel(record.bestE1rm.date) } : {})}
+          />
+          <BigStat
+            value={record?.bestWeight ? formatWeight(record.bestWeight.set.weight, unit) : '–'}
+            unit={u}
+            label="最大重量"
+            {...(record?.bestWeight
+              ? { hint: `× ${record.bestWeight.set.reps} 下，${formatDateLabel(record.bestWeight.date)}` }
+              : {})}
+          />
+        </div>
+      )}
+
+      {allRelative.length > 0 && (
+        <div class="segmented" role="radiogroup" aria-label="顯示方式">
+          {(['weight', 'relative'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={mode === m}
+              class={mode === m ? 'segment is-active' : 'segment'}
+              onClick={() => setMode(m)}
+            >
+              {m === 'weight' ? '重量' : '體重的幾倍'}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div class="chips" role="group" aria-label="時間範圍">
         {RANGES.map((r) => (
@@ -110,37 +162,70 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
         ))}
       </div>
 
-      {points.length === 0 ? (
+      {count === 0 ? (
         <p class="note">這段期間沒有 {selected.name} 的紀錄，試試看更長的時間範圍。</p>
       ) : (
         <ChartCanvas
-          label={`${selected.name} 估算 1RM 趨勢，共 ${points.length} 次紀錄`}
-          deps={[selected.id, range, unit, points.length, points.map((p) => p.e1rm).join()]}
+          label={
+            relative
+              ? `${selected.name} 相對力量趨勢（估算 1RM 是體重的幾倍），共 ${count} 次紀錄`
+              : `${selected.name} 估算 1RM 趨勢，共 ${count} 次紀錄`
+          }
+          deps={[
+            selected.id,
+            range,
+            unit,
+            mode,
+            count,
+            relative ? relativePoints.map((p) => p.ratio).join() : weightPoints.map((p) => p.e1rm).join(),
+          ]}
           build={(t) => ({
             type: 'line',
             data: {
-              datasets: [
-                {
-                  label: '估算 1RM',
-                  data: points.map((p) => ({ x: toTime(p.date), y: chartValue(p.e1rm) })),
-                  borderColor: t.accent,
-                  backgroundColor: t.accent,
-                  borderWidth: 3,
-                  pointRadius: points.length > 30 ? 0 : 4,
-                  pointHoverRadius: 6,
-                  tension: 0.25,
-                },
-                {
-                  label: '當次最大重量',
-                  data: points.map((p) => ({ x: toTime(p.date), y: chartValue(p.topWeight) })),
-                  borderColor: t.muted,
-                  backgroundColor: t.muted,
-                  borderWidth: 2,
-                  borderDash: [6, 4],
-                  pointRadius: points.length > 30 ? 0 : 3,
-                  tension: 0.25,
-                },
-              ],
+              datasets: relative
+                ? [
+                    {
+                      label: '估算 1RM ÷ 體重',
+                      data: relativePoints.map((p) => ({
+                        x: toTime(p.date),
+                        y: Math.round(p.ratio * 100) / 100,
+                      })),
+                      borderColor: t.accent,
+                      backgroundColor: t.accent,
+                      borderWidth: 3,
+                      pointRadius: count > 30 ? 0 : 4,
+                      pointHoverRadius: 6,
+                      tension: 0.25,
+                    },
+                  ]
+                : [
+                    {
+                      label: '估算 1RM',
+                      data: weightPoints.map((p) => ({
+                        x: toTime(p.date),
+                        y: chartValue(p.e1rm),
+                      })),
+                      borderColor: t.accent,
+                      backgroundColor: t.accent,
+                      borderWidth: 3,
+                      pointRadius: count > 30 ? 0 : 4,
+                      pointHoverRadius: 6,
+                      tension: 0.25,
+                    },
+                    {
+                      label: '當次最大重量',
+                      data: weightPoints.map((p) => ({
+                        x: toTime(p.date),
+                        y: chartValue(p.topWeight),
+                      })),
+                      borderColor: t.muted,
+                      backgroundColor: t.muted,
+                      borderWidth: 2,
+                      borderDash: [6, 4],
+                      pointRadius: count > 30 ? 0 : 3,
+                      tension: 0.25,
+                    },
+                  ],
             },
             options: {
               responsive: true,
@@ -152,9 +237,12 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
                 x: {
                   type: 'linear',
                   // 只有一筆時左右各留一週，點才不會貼邊
-                  ...(points.length === 1
-                    ? { min: toTime(points[0]!.date) - 7 * 864e5, max: toTime(points[0]!.date) + 7 * 864e5 }
-                    : { min: toTime(points[0]!.date), max: toTime(points[points.length - 1]!.date) }),
+                  ...(count === 1
+                    ? {
+                        min: toTime(firstDate) - 7 * 864e5,
+                        max: toTime(firstDate) + 7 * 864e5,
+                      }
+                    : { min: toTime(firstDate), max: toTime(lastDate) }),
                   offset: false,
                   ticks: {
                     color: t.muted,
@@ -166,7 +254,11 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
                   border: { color: t.line },
                 },
                 y: {
-                  ticks: { color: t.muted, font: { family: t.fontNum, size: 14 }, maxTicksLimit: 6 },
+                  ticks: {
+                    color: t.muted,
+                    font: { family: t.fontNum, size: 14 },
+                    maxTicksLimit: 6,
+                  },
                   grid: { color: t.line },
                   border: { display: false },
                 },
@@ -174,7 +266,12 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
               plugins: {
                 legend: {
                   position: 'bottom',
-                  labels: { color: t.ink, boxWidth: 14, boxHeight: 3, font: { family: t.fontBody, size: 13 } },
+                  labels: {
+                    color: t.ink,
+                    boxWidth: 14,
+                    boxHeight: 3,
+                    font: { family: t.fontBody, size: 13 },
+                  },
                 },
                 tooltip: {
                   callbacks: {
@@ -183,7 +280,10 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
                       if (x === undefined || x === null) return '';
                       return longDate(x);
                     },
-                    label: (item) => ` ${item.dataset.label}：${item.parsed.y} ${u}`,
+                    label: (item) =>
+                      relative
+                        ? ` 體重的 ${formatRatio(item.parsed.y ?? 0)} 倍（體重 ${formatNumber(relativePoints[item.dataIndex]?.bodyweight ?? 0)} kg）`
+                        : ` ${item.dataset.label}：${item.parsed.y} ${u}`,
                   },
                 },
               },
@@ -196,7 +296,12 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
         看{selected.name}的每一次紀錄
       </a>
 
-      <p class="note">估算 1RM 使用 Epley 公式，只採計 1–10 下的正式組。自體重量動作請看 PR 牆的次數紀錄。</p>
+      <p class="note">
+        估算 1RM 使用 Epley 公式，只採計 1–10 下的正式組。自體重量動作請看 PR 牆的次數紀錄。
+        {allRelative.length > 0
+          ? '「體重的幾倍」用訓練那天前後最接近的體重紀錄計算（相差 30 天以內）；減脂期體重下降、重量持平，倍數上升也是進步。'
+          : '在體態頁記錄體重後，還可以看估算 1RM 是體重的幾倍（相對力量）。'}
+      </p>
     </div>
   );
 }

@@ -62,18 +62,17 @@ function DecisionCard() {
  * 一切正常時不顯示。
  */
 export function CloudBanner() {
-  const { meta, busy, decision, error } = useStore(cloud.store);
+  const { meta, busy, decision, error, photoError } = useStore(cloud.store);
   if (!meta.enabled) return null;
   if (decision) return <DecisionCard />;
   const needsTap = meta.dirty && !hasValidToken(meta);
-  if (!needsTap && !error) return null;
+  const failed = error ? `雲端備份失敗：${error}` : photoError ? `照片備份失敗：${photoError}` : null;
+  if (!needsTap && !failed) return null;
   return (
-    <div class={error ? 'cloud-card cloud-card-warn' : 'cloud-card'} role="status">
-      <span>
-        {busy === 'upload' ? '上傳到 Google Drive 中…' : error ? `雲端備份失敗：${error}` : '有變更還沒備份到 Google Drive'}
-      </span>
+    <div class={failed ? 'cloud-card cloud-card-warn' : 'cloud-card'} role="status">
+      <span>{busy === 'upload' ? '上傳到 Google Drive 中…' : (failed ?? '有變更還沒備份到 Google Drive')}</span>
       <button type="button" class="btn btn-secondary btn-sm" disabled={busy !== null} onClick={() => act(() => cloud.uploadNow(), '已備份到 Google Drive')}>
-        {error ? '重試' : '上傳'}
+        {failed ? '重試' : '上傳'}
       </button>
     </div>
   );
@@ -81,7 +80,7 @@ export function CloudBanner() {
 
 /** 設定頁：連線、狀態、立即上傳、從雲端還原、中斷連線 */
 export function CloudBackupSection() {
-  const { meta, busy, error } = useStore(cloud.store);
+  const { meta, busy, error, photos, photoError } = useStore(cloud.store);
 
   return (
     <section class="section">
@@ -93,7 +92,7 @@ export function CloudBackupSection() {
       ) : !meta.enabled ? (
         <>
           <p class="muted small-text">
-            連線後，每次新增或修改紀錄都會自動備份到你的 Google Drive（放在 App 專用的隱藏資料夾，看不到也不會動到你 Drive 裡的其他檔案）。換手機時登入同一個 Google 帳號就能還原。照片（飲食、體態）不在雲端備份裡。
+            連線後，每次新增或修改紀錄都會自動備份到你的 Google Drive（放在 App 專用的隱藏資料夾，看不到也不會動到你 Drive 裡的其他檔案）。照片（飲食、體態）也會一起備份。換手機時登入同一個 Google 帳號就能還原。
           </p>
           <button type="button" class="btn btn-primary btn-block" disabled={busy !== null} onClick={() => act(() => cloud.connect())}>
             {busy === 'connect' ? '連線中…' : '連線 Google Drive'}
@@ -115,8 +114,11 @@ export function CloudBackupSection() {
             </dd>
             <dt>上次備份</dt>
             <dd>{meta.lastUploadAt ? cloudTimeLabel(meta.lastUploadAt) : '還沒有'}</dd>
+            <dt>照片</dt>
+            <dd>{photos ? `同步中 ${photos.done}／${photos.total} 張` : photoError ? '同步失敗' : '一起備份'}</dd>
           </dl>
           {error && <p class="note note-warn">{error}</p>}
+          {photoError && <p class="note note-warn">照片備份失敗：{photoError}</p>}
           <p class="muted small-text">
             Google 的授權約 1 小時有效，過期後會在紀錄頁顯示「上傳」按鈕，按一下就會繼續備份。
           </p>

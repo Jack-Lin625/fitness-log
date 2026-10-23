@@ -7,6 +7,7 @@
  * - 這台裝置沒有資料（新手機）→ 問要不要從雲端還原，絕不上傳空白資料
  * - 雲端的備份是別台裝置（或這台重新安裝前）上傳的 → 問使用者要用哪一份
  */
+import type { AppData } from '../types/models';
 import type { CloudFile } from './googleDrive';
 
 export type SyncDecision =
@@ -74,4 +75,46 @@ export function parseMeta(raw: string | null): CloudMeta {
 /** 權杖還能用嗎 */
 export function hasValidToken(meta: CloudMeta, now = Date.now()): boolean {
   return Boolean(meta.token && meta.tokenExpiresAt && meta.tokenExpiresAt > now);
+}
+
+// ───────── 照片 ─────────
+
+/** 紀錄裡用到的照片 id（飲食照片、體態照片） */
+export function referencedPhotoIds(data: Pick<AppData, 'foodEntries' | 'bodyMetrics'>): Set<string> {
+  const ids = new Set<string>();
+  for (const f of data.foodEntries) if (f.photoId) ids.add(f.photoId);
+  for (const m of data.bodyMetrics) for (const p of m.photos ?? []) ids.add(p.photoId);
+  return ids;
+}
+
+export interface PhotoSyncPlan {
+  /** 這台有、雲端沒有：上傳 */
+  upload: string[];
+  /** 雲端有、這台沒有：下載（照片 id 與雲端檔案 id） */
+  download: { id: string; fileId: string }[];
+  /** 紀錄已經用不到的雲端照片（雲端檔案 id） */
+  remove: string[];
+}
+
+/**
+ * 照片同步要做的事。照片內容不會變（換照片就是新的 id），所以比對 id 就夠了。
+ * 只處理紀錄用得到的照片；prune 為 true（雲端的紀錄剛和這台一致）才刪除雲端用不到的照片，
+ * 避免刪掉別台裝置還在用、這台還不知道的照片。
+ */
+export function planPhotoSync(input: {
+  referenced: Set<string>;
+  local: Set<string>;
+  /** 雲端的照片：照片 id → 雲端檔案 id */
+  remote: Map<string, string>;
+  prune: boolean;
+}): PhotoSyncPlan {
+  const { referenced, local, remote, prune } = input;
+  const plan: PhotoSyncPlan = { upload: [], download: [], remove: [] };
+  for (const id of referenced) {
+    const fileId = remote.get(id);
+    if (local.has(id) && !fileId) plan.upload.push(id);
+    else if (!local.has(id) && fileId) plan.download.push({ id, fileId });
+  }
+  if (prune) for (const [id, fileId] of remote) if (!referenced.has(id)) plan.remove.push(fileId);
+  return plan;
 }

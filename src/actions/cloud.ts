@@ -5,7 +5,16 @@ import { confirmDialog } from '../components/Dialog';
 import { repo } from '../data';
 import { formatDateLabel } from '../lib/date';
 import { preloadGoogleAuth, requestAccessToken, revokeAccess } from '../lib/googleAuth';
-import { downloadBackup, findBackup, uploadBackup } from '../lib/googleDrive';
+import { getPhoto, listPhotoIds, savePhoto } from '../data/photoStore';
+import {
+  deletePhotoFile,
+  downloadBackup,
+  downloadPhoto,
+  findBackup,
+  listPhotos,
+  uploadBackup,
+  uploadPhoto,
+} from '../lib/googleDrive';
 import { CloudBackup } from './cloudBackup';
 
 /** 雲端備份時間的顯示文字，例如「10月23日 週五 14:05」 */
@@ -23,6 +32,15 @@ export const cloud = new CloudBackup({
   findBackup,
   uploadBackup,
   downloadBackup,
+  photos: {
+    list: listPhotos,
+    upload: uploadPhoto,
+    download: downloadPhoto,
+    remove: deletePhotoFile,
+    localIds: listPhotoIds,
+    getLocal: getPhoto,
+    saveLocal: async (id, blob) => void (await savePhoto(blob, id)),
+  },
   confirmRestore: (file, incoming) => {
     const d = repo.getData();
     return confirmDialog({
@@ -31,7 +49,7 @@ export const cloud = new CloudBackup({
         `雲端備份（${cloudTimeLabel(file.modifiedTime)}）：訓練 ${incoming.sessions.length} 筆、` +
         `體態 ${incoming.bodyMetrics.length} 筆、飲食 ${incoming.foodEntries.length} 筆、菜單範本 ${incoming.templates.length} 個。` +
         `這支手機目前：訓練 ${d.sessions.length} 筆、體態 ${d.bodyMetrics.length} 筆、飲食 ${d.foodEntries.length} 筆。` +
-        '取代前會在手機裡另存一份目前的資料。',
+        '取代前會在手機裡另存一份目前的資料；照片會在之後自動下載。',
       confirmText: '取代',
       danger: true,
     });

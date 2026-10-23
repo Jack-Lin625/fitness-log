@@ -28,6 +28,9 @@ export class DriveAuthError extends Error {
   }
 }
 
+/** 檔案不存在 */
+class DriveNotFoundError extends Error {}
+
 async function request(token: string, url: string, init: RequestInit = {}): Promise<Response> {
   let res: Response;
   try {
@@ -40,6 +43,7 @@ async function request(token: string, url: string, init: RequestInit = {}): Prom
     const quota = (await res.text().catch(() => '')).includes('storageQuotaExceeded');
     throw new Error(quota ? 'Google Drive 空間已滿' : 'Google Drive 拒絕存取，請重新連線');
   }
+  if (res.status === 404) throw new DriveNotFoundError('Google Drive 找不到這個檔案');
   if (!res.ok) throw new Error(`Google Drive 發生錯誤（${res.status}），請稍後再試`);
   return res;
 }
@@ -90,4 +94,63 @@ export async function uploadBackup(token: string, json: string, fileId?: string)
 export async function downloadBackup(token: string, fileId: string): Promise<string> {
   const res = await request(token, `${API}/${encodeURIComponent(fileId)}?alt=media`);
   return res.text();
+}
+
+// ───────── 照片：每張照片一個檔案（檔名 photo-<照片 id>），內容不會變，只需新增與刪除 ─────────
+
+const PHOTO_PREFIX = 'photo-';
+
+/** 雲端所有照片：照片 id → 雲端檔案 id */
+export async function listPhotos(token: string): Promise<Map<string, string>> {
+  const photos = new Map<string, string>();
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({
+      spaces: 'appDataFolder',
+      q: `name contains '${PHOTO_PREFIX}' and trashed = false`,
+      fields: 'nextPageToken,files(id,name)',
+      pageSize: '1000',
+    });
+    if (pageToken) params.set('pageToken', pageToken);
+    const res = await request(token, `${API}?${params}`);
+    const body = (await res.json()) as { nextPageToken?: string; files?: { id: string; name: string }[] };
+    for (const f of body.files ?? []) {
+      if (f.name.startsWith(PHOTO_PREFIX)) photos.set(f.name.slice(PHOTO_PREFIX.length), f.id);
+    }
+    pageToken = body.nextPageToken;
+  } while (pageToken);
+  return photos;
+}
+
+/** 上傳一張照片 */
+export async function uploadPhoto(token: string, id: string, blob: Blob): Promise<void> {
+  const boundary = `fitlog-${Math.random().toString(36).slice(2)}`;
+  const type = blob.type || 'image/jpeg';
+  const metadata = JSON.stringify({ name: PHOTO_PREFIX + id, parents: ['appDataFolder'], mimeType: type });
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+    `--${boundary}\r\nContent-Type: ${type}\r\n\r\n`,
+    blob,
+    `\r\n--${boundary}--`,
+  ]);
+  await request(token, `${UPLOAD}?uploadType=multipart&fields=id`, {
+    method: 'POST',
+    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  });
+}
+
+/** 下載一張照片 */
+export async function downloadPhoto(token: string, fileId: string): Promise<Blob> {
+  const res = await request(token, `${API}/${encodeURIComponent(fileId)}?alt=media`);
+  return res.blob();
+}
+
+/** 刪除雲端的一張照片（已經不在也算成功） */
+export async function deletePhotoFile(token: string, fileId: string): Promise<void> {
+  try {
+    await request(token, `${API}/${encodeURIComponent(fileId)}`, { method: 'DELETE' });
+  } catch (err) {
+    if (!(err instanceof DriveNotFoundError)) throw err;
+  }
 }

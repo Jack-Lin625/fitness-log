@@ -182,7 +182,7 @@ function PhotoBackupSection() {
       <h2 class="section-title">照片（飲食、體態）</h2>
       <p class="muted small-text">
         {usage && (usage.count === 0 ? '目前沒有照片。' : `目前 ${usage.count} 張，約 ${formatBytes(usage.bytes)}。`)}
-        照片不在「完整備份」裡，換手機時請另外下載照片備份，在新手機先匯入完整備份、再匯入照片。
+        照片不在「完整備份」檔裡；有連線 Google Drive 的話會自動備份。沒有用雲端備份時，換手機請另外下載照片備份，在新手機先匯入完整備份、再匯入照片。
       </p>
       <div class="button-pair">
         <button type="button" class="btn btn-secondary" disabled={busy !== null} onClick={exportPhotos}>

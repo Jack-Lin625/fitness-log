@@ -10,6 +10,7 @@ import { formatSetShort } from '../lib/draft';
 import { exerciseHistory } from '../lib/exerciseHistory';
 import { formatNumber } from '../lib/number';
 import { computeRecords, type RecordKind } from '../lib/records';
+import { bestRelativeOf, formatRatio, weighIns } from '../lib/relativeStrength';
 import { formatWeight, toDisplay, unitLabel } from '../lib/units';
 import { formatVolume } from '../lib/volume';
 
@@ -28,6 +29,8 @@ export function ExerciseHistory({ exerciseId, linkSessions = true }: { exerciseI
   const sessions = repo.getSessions();
   const entries = exerciseHistory(sessions, exerciseId, traits);
   const record = computeRecords(sessions).get(exerciseId);
+  // 相對力量最好的一次（估算 1RM ÷ 當時體重）
+  const bestRel = traits.bodyweight ? null : bestRelativeOf(sessions, exerciseId, weighIns(repo.getBodyMetrics()));
 
   return (
     <div class="tool">
@@ -65,6 +68,13 @@ export function ExerciseHistory({ exerciseId, linkSessions = true }: { exerciseI
             )}
             <BigStat value={entries.length} unit="次" label="做過" hint={`上次 ${formatDateLabel(entries[0]!.date)}`} />
           </div>
+
+          {bestRel && (
+            <p class="note">
+              相對力量最好的一次：估算 1RM 是體重的 <strong class="num">{formatRatio(bestRel.ratio)}</strong> 倍（體重{' '}
+              {formatNumber(bestRel.bodyweight)} kg，{formatDateLabel(bestRel.date)}）
+            </p>
+          )}
 
           {!traits.bodyweight && record?.bestE1rm && (
             <a href={`#/charts/trend/${encodeURIComponent(exerciseId)}`} class="btn btn-secondary btn-block btn-link">

@@ -6,7 +6,7 @@ import type { CloudFile } from '../lib/googleDrive';
 import { DriveAuthError } from '../lib/googleDrive';
 import { installMemoryStorage } from '../test/memoryStorage';
 import type { WorkoutSession } from '../types/models';
-import { CloudBackup, type CloudDeps } from './cloudBackup';
+import { CloudBackup, type CloudDeps, type PhotoDeps } from './cloudBackup';
 
 const storage = installMemoryStorage();
 
@@ -39,11 +39,28 @@ function fakeDrive() {
   };
 }
 
+/** 假的照片：雲端與這台裝置各一份 */
+function fakePhotos() {
+  const remote = new Map<string, Blob>(); // 雲端檔案 id（= cloud-<照片 id>）→ 內容
+  const local = new Map<string, Blob>();
+  const deps: PhotoDeps = {
+    list: vi.fn(async () => new Map([...remote.keys()].map((fileId) => [fileId.slice('cloud-'.length), fileId]))),
+    upload: vi.fn(async (_t: string, id: string, blob: Blob) => void remote.set(`cloud-${id}`, blob)),
+    download: vi.fn(async (_t: string, fileId: string) => remote.get(fileId)!),
+    remove: vi.fn(async (_t: string, fileId: string) => void remote.delete(fileId)),
+    localIds: vi.fn(async () => new Set(local.keys())),
+    getLocal: vi.fn(async (id: string) => local.get(id)),
+    saveLocal: vi.fn(async (id: string, blob: Blob) => void local.set(id, blob)),
+  };
+  return { remote, local, deps };
+}
+
 async function setup(sessions: WorkoutSession[] = []) {
   const repo = new Repository(new LocalStorageAdapter());
   await repo.init();
   for (const s of sessions) await repo.saveSession(s);
   const drive = fakeDrive();
+  const photos = fakePhotos();
   const deps: CloudDeps = {
     repo,
     requestToken: vi.fn(async () => ({ token: 'tok', expiresAt: Date.now() + 3_600_000 })),
@@ -52,11 +69,12 @@ async function setup(sessions: WorkoutSession[] = []) {
     uploadBackup: drive.uploadBackup,
     downloadBackup: drive.downloadBackup,
     confirmRestore: vi.fn(async () => true),
+    photos: photos.deps,
     storage: localStorage,
   };
   const cloud = new CloudBackup(deps);
   cloud.start();
-  return { repo, drive, deps, cloud };
+  return { repo, drive, deps, cloud, photos };
 }
 
 describe('CloudBackup', () => {
@@ -223,5 +241,111 @@ describe('CloudBackup.refreshOnTap（按「完成」時順便更新授權）', (
     await vi.advanceTimersByTimeAsync(5000);
     expect(cloud.state.meta.dirty).toBe(true);
     expect(cloud.state.busy).toBeNull();
+  });
+});
+
+describe('CloudBackup 照片同步', () => {
+  beforeEach(() => storage.reset());
+  afterEach(() => vi.useRealTimers());
+
+  const jpeg = (n: number) => new Blob([new Uint8Array([n])], { type: 'image/jpeg' });
+  const meal = (id: string, photoId: string) => ({ id, date: '2026-10-20', meal: 'lunch' as const, name: '便當', kcal: 700, photoId, createdAt: 1 });
+
+  it('上傳紀錄後，把紀錄用到的照片上傳；沒用到的本機照片不傳', async () => {
+    const { cloud, repo, photos } = await setup([workout('a')]);
+    photos.local.set('p1', jpeg(1));
+    photos.local.set('orphan', jpeg(9));
+    await repo.saveFoodEntry(meal('f1', 'p1'));
+    await repo.saveBodyMetric({ id: 'b1', date: '2026-10-20', photos: [{ pose: 'front', photoId: 'p1' }] });
+    await cloud.connect();
+    await cloud.photosSettled();
+    expect([...photos.remote.keys()]).toEqual(['cloud-p1']);
+    expect(cloud.state.photos).toBeNull();
+
+    // 已經在雲端的不會再傳一次
+    await cloud.uploadNow();
+    await cloud.photosSettled();
+    expect(photos.deps.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('刪掉紀錄後，雲端的照片也跟著刪掉', async () => {
+    vi.useFakeTimers();
+    const { cloud, repo, photos } = await setup([workout('a')]);
+    photos.local.set('p1', jpeg(1));
+    await repo.saveFoodEntry(meal('f1', 'p1'));
+    await cloud.connect();
+    await cloud.photosSettled();
+    expect(photos.remote.size).toBe(1);
+
+    await repo.deleteFoodEntry('f1');
+    await vi.advanceTimersByTimeAsync(5000);
+    await cloud.photosSettled();
+    expect(photos.remote.size).toBe(0);
+  });
+
+  it('新手機從雲端還原：照片也下載回來', async () => {
+    const { cloud, repo, drive, photos } = await setup();
+    photos.remote.set('cloud-p1', jpeg(1));
+    photos.remote.set('cloud-p2', jpeg(2));
+    drive.putFromOtherDevice(
+      JSON.stringify({ ...createEmptyData(), foodEntries: [meal('f1', 'p1')], bodyMetrics: [{ id: 'b', date: '2026-10-19', photos: [{ pose: 'side', photoId: 'p2' }] }] }),
+    );
+    await cloud.connect();
+    await cloud.resolve('useCloud');
+    await cloud.photosSettled();
+    expect(repo.getData().foodEntries).toHaveLength(1);
+    expect([...photos.local.keys()].sort()).toEqual(['p1', 'p2']);
+    expect(photos.deps.remove).not.toHaveBeenCalled();
+  });
+
+  it('啟動時只補傳、補下載，不刪雲端的照片（雲端可能有別台的新紀錄）', async () => {
+    storage.store.set('fitlog:cloud', JSON.stringify({ enabled: true, dirty: false, token: 'tok', tokenExpiresAt: Date.now() + 3_600_000 }));
+    const repo = new Repository(new LocalStorageAdapter());
+    await repo.init();
+    await repo.saveFoodEntry(meal('f1', 'p1'));
+    const photos = fakePhotos();
+    photos.local.set('p1', jpeg(1));
+    photos.remote.set('cloud-other', jpeg(5));
+    const drive = fakeDrive();
+    const cloud = new CloudBackup({
+      repo,
+      requestToken: vi.fn(),
+      revoke: vi.fn(),
+      ...drive,
+      confirmRestore: vi.fn(),
+      photos: photos.deps,
+      storage: localStorage,
+    });
+    cloud.start();
+    await cloud.photosSettled();
+    expect([...photos.remote.keys()].sort()).toEqual(['cloud-other', 'cloud-p1']);
+  });
+
+  it('照片上傳失敗：記下原因，紀錄的備份不受影響；下次成功就清掉', async () => {
+    const { cloud, repo, photos, drive } = await setup([workout('a')]);
+    photos.local.set('p1', jpeg(1));
+    await repo.saveFoodEntry(meal('f1', 'p1'));
+    vi.mocked(photos.deps.upload).mockRejectedValueOnce(new Error('Google Drive 空間已滿'));
+    await cloud.connect();
+    await cloud.photosSettled();
+    expect(drive.file).not.toBeNull();
+    expect(cloud.state.meta.dirty).toBe(false);
+    expect(cloud.state.photoError).toBe('Google Drive 空間已滿');
+
+    await cloud.uploadNow();
+    await cloud.photosSettled();
+    expect(cloud.state.photoError).toBeNull();
+    expect(photos.remote.size).toBe(1);
+  });
+
+  it('照片同步時授權過期：清掉權杖，不顯示錯誤（下次按按鈕再繼續）', async () => {
+    const { cloud, repo, photos } = await setup([workout('a')]);
+    photos.local.set('p1', jpeg(1));
+    await repo.saveFoodEntry(meal('f1', 'p1'));
+    vi.mocked(photos.deps.list).mockRejectedValueOnce(new DriveAuthError());
+    await cloud.connect();
+    await cloud.photosSettled();
+    expect(cloud.state.meta.token).toBeUndefined();
+    expect(cloud.state.photoError).toBeNull();
   });
 });
