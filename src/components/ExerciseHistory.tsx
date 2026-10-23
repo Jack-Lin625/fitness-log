@@ -5,10 +5,11 @@ import { EquipmentIcon } from './EquipmentIcon';
 import { LazyGuideSheet } from './LazyGuideSheet';
 import { EQUIPMENT_LABELS, MUSCLE_LABELS } from '../data/catalog';
 import { useRepository } from '../hooks/useRepository';
-import { formatDateLabel } from '../lib/date';
+import { addDays, formatDateLabel, todayString } from '../lib/date';
 import { formatSetShort } from '../lib/draft';
 import { exerciseHistory } from '../lib/exerciseHistory';
 import { formatNumber } from '../lib/number';
+import { findPlateaus, PLATEAU_TIPS } from '../lib/plateau';
 import { computeRecords, type RecordKind } from '../lib/records';
 import { bestRelativeOf, formatRatio, weighIns } from '../lib/relativeStrength';
 import { formatWeight, toDisplay, unitLabel } from '../lib/units';
@@ -30,6 +31,8 @@ export function ExerciseHistory({ exerciseId, linkSessions = true }: { exerciseI
   const entries = exerciseHistory(sessions, exerciseId, traits);
   const record = computeRecords(sessions).get(exerciseId);
   // 相對力量最好的一次（估算 1RM ÷ 當時體重）
+  // 很久沒進步時提醒（含今天的紀錄）
+  const plateau = findPlateaus(sessions, addDays(todayString(), 1), repo.traitsOf).find((p) => p.exerciseId === exerciseId);
   const bestRel = traits.bodyweight ? null : bestRelativeOf(sessions, exerciseId, weighIns(repo.getBodyMetrics()));
 
   return (
@@ -68,6 +71,19 @@ export function ExerciseHistory({ exerciseId, linkSessions = true }: { exerciseI
             )}
             <BigStat value={entries.length} unit="次" label="做過" hint={`上次 ${formatDateLabel(entries[0]!.date)}`} />
           </div>
+
+          {plateau && (
+            <div class="note note-warn">
+              <strong>
+                已經 {plateau.weeks} 週沒進步（上次 {formatDateLabel(plateau.lastProgress)}，之後練了 {plateau.sessionsSince} 次）
+              </strong>
+              <ul class="review-tips">
+                {PLATEAU_TIPS.map((t) => (
+                  <li key={t}>{t}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {bestRel && (
             <p class="note">
