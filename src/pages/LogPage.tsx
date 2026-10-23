@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { backupOverdue, daysSinceBackup, downloadBackup } from '../actions/backup';
 import { deleteTemplate, resumeDraft, startFromSession, startFromTemplate, startNewWorkout } from '../actions/workout';
 import { BigStat } from '../components/BigStat';
+import { CloudBanner } from '../components/CloudBackup';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
 import { useRepository } from '../hooks/useRepository';
@@ -53,6 +54,8 @@ export function LogPage() {
           {...(lastWeekVolume > 0 ? { hint: `上週 ${volumeText(lastWeekVolume)} ${unitLabel(unit)}` } : {})}
         />
       </div>
+
+      <CloudBanner />
 
       {backupOverdue() && (
         <div class="backup-banner" role="status">

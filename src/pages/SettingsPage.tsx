@@ -1,5 +1,6 @@
 import { confirmDialog } from '../components/Dialog';
 import { PageHeader } from '../components/PageHeader';
+import { CloudBackupSection } from '../components/CloudBackup';
 import { ClearDataSection, DataManagement } from '../components/DataManagement';
 import { showToast } from '../components/Toast';
 import { useRepository } from '../hooks/useRepository';
@@ -165,6 +166,8 @@ export function SettingsPage() {
           </label>
         </div>
       </section>
+
+      <CloudBackupSection />
 
       <DataManagement />
 

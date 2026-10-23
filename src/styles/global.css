@@ -2961,3 +2961,32 @@ body:has(.rest-bar) .page-editor {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* ───────── Google Drive 雲端備份 ───────── */
+.cloud-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  font-weight: 600;
+}
+
+.cloud-card p {
+  font-weight: 400;
+  font-size: 14px;
+  color: inherit;
+  margin: 0;
+}
+
+.cloud-card-warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+.cloud-card .button-pair {
+  width: 100%;
+}

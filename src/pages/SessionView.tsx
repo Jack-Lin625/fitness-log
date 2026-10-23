@@ -1,5 +1,6 @@
 import { deleteSession, editSession, saveAsTemplate, startFromSession } from '../actions/workout';
 import { BigStat } from '../components/BigStat';
+import { CloudBanner } from '../components/CloudBackup';
 import { EquipmentIcon } from '../components/EquipmentIcon';
 import { PageHeader } from '../components/PageHeader';
 import { navigate } from '../hooks/useHashRoute';
@@ -71,6 +72,8 @@ export function SessionView({ id }: { id: string }) {
           label="這次的總訓練容量（不含熱身組）"
         />
       </div>
+
+      <CloudBanner />
 
       {/* 今天剛練完的訓練，把拉伸放在最顯眼的位置 */}
       {isToday && stretchButton}
