@@ -7,6 +7,8 @@ import {
   CURRENT_DATA_VERSION,
   type AppData,
   type BodyMetric,
+  type BodyPhoto,
+  BODY_POSES,
   type DraftExercise,
   type DraftSet,
   type Equipment,
@@ -66,6 +68,8 @@ const MIGRATIONS: Record<number, Migration> = {
   3: (d) => ({ ...d, version: 4, nutritionProfile: null, foodEntries: [] }),
   // v4 → v5：新增菜單範本、常吃的食物（動作備註、超級組、訓練時長都是選填欄位）
   4: (d) => ({ ...d, version: 5, templates: [], foodFavorites: [] }),
+  // v5 → v6：體態紀錄可以附照片（選填欄位，舊資料不用改）
+  5: (d) => ({ ...d, version: 6 }),
 };
 
 export class MigrationError extends Error {
@@ -200,12 +204,21 @@ function isValidBodyMetric(v: unknown): v is BodyMetric {
   return isRecord(v) && isStr(v.id) && typeof v.date === 'string' && DATE_RE.test(v.date);
 }
 
-/** 體態數值只保留有效的數字 */
+/** 體態數值只保留有效的數字；照片只留角度正確、每個角度一張 */
 function withValidMetrics(m: BodyMetric): BodyMetric {
   const result: BodyMetric = { id: m.id, date: m.date };
   for (const { key } of STORED_METRICS) {
     const v: unknown = m[key];
     if (isNum(v)) result[key] = v;
+  }
+  if (Array.isArray(m.photos)) {
+    const photos: BodyPhoto[] = [];
+    for (const p of m.photos as unknown[]) {
+      if (!isRecord(p) || !oneOf(BODY_POSES, p.pose) || !isStr(p.photoId)) continue;
+      if (photos.some((x) => x.pose === p.pose)) continue;
+      photos.push({ pose: p.pose, photoId: p.photoId });
+    }
+    if (photos.length > 0) result.photos = photos;
   }
   return result;
 }

@@ -130,7 +130,12 @@ export function LogPage() {
         <EmptyState title="還沒有訓練紀錄" body="完成第一次訓練後，紀錄會依日期排列在這裡。" />
       ) : (
         <section class="section">
-          <h2 class="section-title">歷史紀錄（{sessions.length} 次）</h2>
+          <h2 class="section-title section-title-row">
+            <span>歷史紀錄（{sessions.length} 次）</span>
+            <a href="#/charts/calendar" class="btn-text">
+              日曆 ›
+            </a>
+          </h2>
           <ul class="session-list">
             {sessions.slice(0, historyLimit).map((s) => {
               const { names, parts } = describe(s.exercises.map((e) => e.exerciseId));

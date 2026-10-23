@@ -1,24 +1,26 @@
 import { PageHeader } from '../components/PageHeader';
+import { CalendarView } from '../components/charts/CalendarView';
 import { PrWall } from '../components/charts/PrWall';
 import { TrendView } from '../components/charts/TrendView';
 import { VolumeView } from '../components/charts/VolumeView';
 
-type Tab = 'trend' | 'volume' | 'pr';
+type Tab = 'calendar' | 'trend' | 'volume' | 'pr';
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'calendar', label: '日曆' },
   { id: 'trend', label: '1RM 趨勢' },
-  { id: 'volume', label: '部位訓練量' },
+  { id: 'volume', label: '訓練量' },
   { id: 'pr', label: 'PR 牆' },
 ];
 
 /** 進步圖表頁；分頁與選擇的動作都記在網址上（#/charts/trend/squat） */
 export function ChartsPage({ params }: { params: string[] }) {
-  const tab: Tab = params[0] === 'volume' || params[0] === 'pr' ? params[0] : 'trend';
+  const tab: Tab = params[0] === 'volume' || params[0] === 'pr' || params[0] === 'calendar' ? params[0] : 'trend';
 
   return (
     <>
       <PageHeader title="進步圖表" />
-      <div class="segmented segmented-3" role="tablist">
+      <div class="segmented segmented-4" role="tablist">
         {TABS.map((t) => (
           <a
             key={t.id}
@@ -31,6 +33,7 @@ export function ChartsPage({ params }: { params: string[] }) {
           </a>
         ))}
       </div>
+      {tab === 'calendar' && <CalendarView />}
       {tab === 'trend' && <TrendView exerciseId={params[1]} />}
       {tab === 'volume' && <VolumeView />}
       {tab === 'pr' && <PrWall />}

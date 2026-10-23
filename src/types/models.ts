@@ -112,6 +112,20 @@ export interface WorkoutTemplate {
   createdAt: number;
 }
 
+/** 體態照片的角度 */
+export type BodyPose = 'front' | 'side' | 'back';
+
+/** 體態照片的顯示順序 */
+export const BODY_POSES: readonly BodyPose[] = ['front', 'side', 'back'];
+
+export const BODY_POSE_LABELS: Record<BodyPose, string> = { front: '正面', side: '側面', back: '背面' };
+
+/** 一張體態照片；照片本身存在 IndexedDB，這裡只記 id */
+export interface BodyPhoto {
+  pose: BodyPose;
+  photoId: string;
+}
+
 /** 體態紀錄（除日期外皆選填） */
 export interface BodyMetric {
   id: string;
@@ -127,6 +141,8 @@ export interface BodyMetric {
   chest?: number;
   /** 手臂圍 cm */
   arm?: number;
+  /** 體態照片（v6 新增），每個角度最多一張 */
+  photos?: BodyPhoto[];
 }
 
 /** 訓練重量的單位（資料一律以公斤儲存，只有輸入與顯示換算） */
@@ -258,7 +274,7 @@ export interface WorkoutDraft {
 }
 
 /** 目前資料格式版本 */
-export const CURRENT_DATA_VERSION = 5;
+export const CURRENT_DATA_VERSION = 6;
 
 /**
  * localStorage 中實際儲存的根物件。

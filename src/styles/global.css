@@ -3082,3 +3082,220 @@ body:has(.rest-bar) .page-editor {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ───────── 訓練日曆 ───────── */
+.section-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cal-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 6px;
+}
+
+.cal-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.cal-head {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.cal-day {
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  padding: 5px 0 4px;
+  font: inherit;
+}
+
+.cal-day:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+
+.cal-day.is-out {
+  opacity: 0.35;
+}
+
+.cal-day.is-trained {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.cal-day.is-today .cal-num {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cal-day.is-selected {
+  outline: 2px solid var(--accent);
+}
+
+.cal-num {
+  font-size: 16px;
+}
+
+.cal-dots {
+  display: flex;
+  gap: 2px;
+}
+
+.cal-dots .part-dot {
+  width: 7px;
+  height: 7px;
+}
+
+.cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cal-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal-dots .part-dot,
+.cal-legend .part-dot {
+  margin-right: 0;
+}
+
+/* ───────── 體態照片 ───────── */
+.pose-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pose-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pose-img,
+.pose-empty {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.pose-empty {
+  border: 1.5px dashed var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.pose-empty svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.pose-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pose-actions {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compare-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.compare-fig {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.compare-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.compare-missing {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.compare-cap {
+  display: block;
+  font-weight: 700;
+}
+
+.compare-summary {
+  text-align: center;
+  font-weight: 600;
+}
+
+.compare-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.compare-pick .select {
+  width: 100%;
+}
