@@ -175,7 +175,7 @@ describe('migrate：飲食（v4）', () => {
 describe('migrate：v5（範本、常吃的食物、動作備註、超級組、時長、單位）', () => {
   it('v4 資料升級後有空的範本與常吃的食物', () => {
     const data = migrate({ ...base, version: 4, activeDraft: null, nutritionProfile: null, foodEntries: [] });
-    expect(data.version).toBe(5);
+    expect(data.version).toBe(CURRENT_DATA_VERSION);
     expect(data.templates).toEqual([]);
     expect(data.foodFavorites).toEqual([]);
   });
@@ -230,5 +230,38 @@ describe('migrate：v5（範本、常吃的食物、動作備註、超級組、�
     expect(settings.weightUnit).toBe('lb');
     expect(settings.restByExercise).toEqual({ squat: 180 });
     expect(migrate({ ...base, settings: { weightUnit: 'stone' } }).settings).not.toHaveProperty('weightUnit');
+  });
+});
+
+describe('migrate：v6（體態照片）', () => {
+  it('v5 資料升級到 v6，體態紀錄不變', () => {
+    const data = migrate({ ...base, version: 5, bodyMetrics: [{ id: 'a', date: '2026-10-20', weight: 70 }] });
+    expect(data.version).toBe(6);
+    expect(data.bodyMetrics).toEqual([{ id: 'a', date: '2026-10-20', weight: 70 }]);
+  });
+
+  it('照片只留角度正確、有 id 的，每個角度一張；沒有有效照片就不留欄位', () => {
+    const [m] = migrate({
+      ...base,
+      bodyMetrics: [
+        {
+          id: 'a',
+          date: '2026-10-20',
+          photos: [
+            { pose: 'front', photoId: 'p1' },
+            { pose: 'front', photoId: 'p2' },
+            { pose: 'top', photoId: 'p3' },
+            { pose: 'side', photoId: '' },
+            { pose: 'back', photoId: 'p4' },
+            'garbage',
+          ],
+        },
+      ],
+    }).bodyMetrics;
+    expect(m?.photos).toEqual([
+      { pose: 'front', photoId: 'p1' },
+      { pose: 'back', photoId: 'p4' },
+    ]);
+    expect(migrate({ ...base, bodyMetrics: [{ id: 'b', date: '2026-10-20', photos: [{ pose: 'x' }] }] }).bodyMetrics[0]).not.toHaveProperty('photos');
   });
 });

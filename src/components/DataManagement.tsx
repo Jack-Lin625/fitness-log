@@ -57,7 +57,7 @@ export function DataManagement() {
           `飲食 ${incoming.foodEntries.length} 筆、自訂動作 ${incoming.customExercises.length} 個、` +
           `菜單範本 ${incoming.templates.length} 個。` +
           `目前 App 裡的資料會被取代（訓練 ${data.sessions.length} 筆、體態 ${data.bodyMetrics.length} 筆、` +
-          `飲食 ${data.foodEntries.length} 筆）。飲食照片另外備份，不受影響。`,
+          `飲食 ${data.foodEntries.length} 筆）。飲食與體態照片另外備份，不受影響。`,
         confirmText: '取代',
         danger: true,
       });
@@ -133,7 +133,7 @@ export function DataManagement() {
 }
 
 /**
- * 飲食照片的備份：照片很大，不放進「完整備份」，另外下載成一個檔案。
+ * 照片（飲食、體態）的備份：照片很大，不放進「完整備份」，另外下載成一個檔案。
  * 換手機時先匯入完整備份，再匯入照片備份。
  */
 function PhotoBackupSection() {
@@ -151,7 +151,7 @@ function PhotoBackupSection() {
     setBusy('export');
     try {
       const { json, count } = await exportPhotosJson();
-      if (count === 0) return showToast('還沒有飲食照片');
+      if (count === 0) return showToast('還沒有照片');
       if (await downloadFile(datedName('fitlog-photos', 'json'), json, 'application/json')) {
         showToast(`已下載 ${count} 張照片`);
       }
@@ -179,7 +179,7 @@ function PhotoBackupSection() {
 
   return (
     <section class="section">
-      <h2 class="section-title">飲食照片</h2>
+      <h2 class="section-title">照片（飲食、體態）</h2>
       <p class="muted small-text">
         {usage && (usage.count === 0 ? '目前沒有照片。' : `目前 ${usage.count} 張，約 ${formatBytes(usage.bytes)}。`)}
         照片不在「完整備份」裡，換手機時請另外下載照片備份，在新手機先匯入完整備份、再匯入照片。

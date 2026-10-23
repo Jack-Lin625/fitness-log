@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { BigStat } from '../components/BigStat';
 import { BodyChart } from '../components/body/BodyChart';
 import { BodyMetricSheet } from '../components/body/BodyMetricSheet';
+import { PhotoCompare } from '../components/body/PhotoCompare';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
 import { useRepository } from '../hooks/useRepository';
@@ -155,12 +156,24 @@ export function BodyPage() {
       <p class="note">每次在相同條件下測量（例如早上起床、如廁後、進食前）比較準確。</p>
 
       <section class="section">
+        <h2 class="section-title">照片對比</h2>
+        <PhotoCompare metrics={metrics} />
+      </section>
+
+      <section class="section">
         <h2 class="section-title">歷史紀錄（{metrics.length} 筆）</h2>
         <ul class="session-list">
           {[...metrics].reverse().slice(0, historyLimit).map((m) => (
             <li key={m.id}>
               <button type="button" class="body-row" onClick={() => setSheet(m)}>
-                <span class="session-date">{formatDateLabel(m.date)}</span>
+                <span class="session-date">
+                  {formatDateLabel(m.date)}
+                  {m.photos && m.photos.length > 0 && (
+                    <span class="muted body-photo-mark" aria-label={`${m.photos.length} 張照片`}>
+                      {' '}📷
+                    </span>
+                  )}
+                </span>
                 <span class="body-values">
                   {STORED_METRICS.filter((d) => m[d.key] !== undefined).map((d) => (
                     <span key={d.key} class="body-value">

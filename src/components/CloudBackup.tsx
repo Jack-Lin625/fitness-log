@@ -93,7 +93,7 @@ export function CloudBackupSection() {
       ) : !meta.enabled ? (
         <>
           <p class="muted small-text">
-            連線後，每次新增或修改紀錄都會自動備份到你的 Google Drive（放在 App 專用的隱藏資料夾，看不到也不會動到你 Drive 裡的其他檔案）。換手機時登入同一個 Google 帳號就能還原。飲食照片不在雲端備份裡。
+            連線後，每次新增或修改紀錄都會自動備份到你的 Google Drive（放在 App 專用的隱藏資料夾，看不到也不會動到你 Drive 裡的其他檔案）。換手機時登入同一個 Google 帳號就能還原。照片（飲食、體態）不在雲端備份裡。
           </p>
           <button type="button" class="btn btn-primary btn-block" disabled={busy !== null} onClick={() => act(() => cloud.connect())}>
             {busy === 'connect' ? '連線中…' : '連線 Google Drive'}
