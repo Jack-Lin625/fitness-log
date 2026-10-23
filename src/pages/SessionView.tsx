@@ -1,4 +1,4 @@
-import { deleteSession, editSession, startFromSession } from '../actions/workout';
+import { deleteSession, editSession, saveAsTemplate, startFromSession } from '../actions/workout';
 import { BigStat } from '../components/BigStat';
 import { EquipmentIcon } from '../components/EquipmentIcon';
 import { PageHeader } from '../components/PageHeader';
@@ -7,7 +7,9 @@ import { useRepository } from '../hooks/useRepository';
 import { buildRoutine, routineSeconds } from '../data/stretches';
 import { formatDateLabel, todayString } from '../lib/date';
 import { minutesLabel, stretchPlayPath, trainedMuscles } from '../lib/stretchRoute';
+import { formatSessionDuration, supersetGroups } from '../lib/draft';
 import { formatNumber } from '../lib/number';
+import { formatWeight, toDisplay, unitLabel } from '../lib/units';
 import { describeRecord } from '../lib/recordText';
 import { findNewRecords } from '../lib/records';
 import { exerciseVolume, formatVolume, sessionVolume } from '../lib/volume';
@@ -29,6 +31,9 @@ export function SessionView({ id }: { id: string }) {
   }
 
   const setCount = session.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const unit = repo.getWeightUnit();
+  const u = unitLabel(unit);
+  const groups = supersetGroups(session.exercises);
 
   // 這次練到的肌群 → 對應的拉伸
   const muscles = trainedMuscles([session], (eid) => repo.getExercise(eid));
@@ -54,11 +59,17 @@ export function SessionView({ id }: { id: string }) {
       </a>
       <PageHeader
         title={formatDateLabel(session.date)}
-        subtitle={`${session.exercises.length} 個動作，共 ${setCount} 組`}
+        subtitle={`${session.exercises.length} 個動作，共 ${setCount} 組${
+          session.durationSec !== undefined ? `，練了 ${formatSessionDuration(session.durationSec)}` : ''
+        }`}
       />
 
       <div class="stat-row stat-row-single">
-        <BigStat value={formatVolume(sessionVolume(session, repo.isAssisted))} unit="kg" label="這次的總訓練容量（不含熱身組）" />
+        <BigStat
+          value={formatVolume(toDisplay(sessionVolume(session, repo.isAssisted), unit))}
+          unit={u}
+          label="這次的總訓練容量（不含熱身組）"
+        />
       </div>
 
       {/* 今天剛練完的訓練，把拉伸放在最顯眼的位置 */}
@@ -69,8 +80,15 @@ export function SessionView({ id }: { id: string }) {
         const bw = exercise?.isBodyweight ?? false;
         const assisted = exercise?.assisted === true;
         let no = 0;
+        const group = groups[i];
         return (
-          <section key={i} class="view-card">
+          <section key={i} class={group ? 'view-card is-superset' : 'view-card'}>
+            {group && (
+              <p class="superset-tag">
+                超級組 {group.label}
+                {group.position + 1}
+              </p>
+            )}
             <header class="view-head">
               <h2 class="ex-name">
                 {exercise && (
@@ -81,9 +99,10 @@ export function SessionView({ id }: { id: string }) {
                 {exercise?.name ?? '已刪除的動作'}
               </h2>
               <span class="view-volume">
-                <span class="num">{formatVolume(exerciseVolume(ex, repo.isAssisted))}</span> kg
+                <span class="num">{formatVolume(toDisplay(exerciseVolume(ex, repo.isAssisted), unit))}</span> {u}
               </span>
             </header>
+            {ex.note && <p class="view-ex-note">{ex.note}</p>}
             <ol class="view-sets">
               {ex.sets.map((s, j) => {
                 if (!s.isWarmup) no++;
@@ -95,15 +114,15 @@ export function SessionView({ id }: { id: string }) {
                       <span class="num">
                         {assisted
                           ? s.weight > 0
-                            ? `輔助 ${formatNumber(s.weight)}`
+                            ? `輔助 ${formatWeight(s.weight, unit)}`
                             : '自體重'
                           : bw
                             ? s.weight > 0
-                              ? `+${formatNumber(s.weight)}`
+                              ? `+${formatWeight(s.weight, unit)}`
                               : '自體重'
-                            : formatNumber(s.weight)}
+                            : formatWeight(s.weight, unit)}
                       </span>
-                      {(!bw || s.weight > 0) && <span class="unit">kg</span>}
+                      {(!bw || s.weight > 0) && <span class="unit">{u}</span>}
                       <span class="times">×</span>
                       <span class="num">{s.reps}</span>
                       <span class="unit">下</span>
@@ -112,7 +131,7 @@ export function SessionView({ id }: { id: string }) {
                     {setRecords.length > 0 && (
                       <span class="view-set-pr">
                         <span class="tag tag-pr">PR</span>
-                        {setRecords.map((r) => describeRecord(r).replace(/（.*）$/, '')).join('、')}
+                        {setRecords.map((r) => describeRecord(r, unit).replace(/（.*）$/, '')).join('、')}
                       </span>
                     )}
                   </li>
@@ -129,6 +148,9 @@ export function SessionView({ id }: { id: string }) {
         {!isToday && stretchButton}
         <button type="button" class="btn btn-primary btn-block" onClick={() => startFromSession(session)}>
           用這份菜單開始今天的訓練
+        </button>
+        <button type="button" class="btn btn-secondary btn-block" onClick={() => void saveAsTemplate(session)}>
+          存成菜單範本
         </button>
         <button type="button" class="btn btn-secondary btn-block" onClick={() => editSession(session)}>
           修改這筆紀錄

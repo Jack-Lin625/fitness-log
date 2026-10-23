@@ -6,7 +6,7 @@ import { createId } from '../../lib/id';
 import { mealForHour } from '../../lib/nutrition';
 import { formatNumber, parseNumber, sanitizeDecimalInput } from '../../lib/number';
 import { compressImage } from '../../lib/photos';
-import { MEAL_LABELS, MEAL_TYPES, type FoodEntry, type MealType } from '../../types/models';
+import { MEAL_LABELS, MEAL_TYPES, type FoodEntry, type FoodFavorite, type MealType } from '../../types/models';
 import { confirmDialog } from '../Dialog';
 import { showToast } from '../Toast';
 import { useObjectUrl, useStoredPhoto } from './PhotoThumb';
@@ -50,7 +50,11 @@ export function FoodEntrySheet({ initial, date, onClose }: Props) {
 
   const storedPhoto = useStoredPhoto(photoRemoved ? undefined : initial?.photoId);
   const previewUrl = useObjectUrl(newPhoto ?? storedPhoto);
-  const recent = initial ? [] : repo.getRecentFoods(8);
+  const favorites = repo.getFoodFavorites();
+  const favoriteNames = new Set(favorites.map((f) => f.name));
+  // 最近吃過的清單不重複列出已經在常吃裡的
+  const recent = initial ? [] : repo.getRecentFoods(8).filter((f) => !favoriteNames.has(f.name));
+  const currentFavorite = repo.getFoodFavoriteByName(name.trim());
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -79,11 +83,34 @@ export function FoodEntrySheet({ initial, date, onClose }: Props) {
     setPhotoRemoved(true);
   };
 
-  /** 一鍵帶入最近吃過的食物 */
-  const fillFrom = (f: FoodEntry) => {
+  /** 一鍵帶入最近吃過或常吃的食物 */
+  const fillFrom = (f: FoodEntry | FoodFavorite) => {
     setName(f.name);
     setKcal(formatNumber(f.kcal));
     setMacros({ protein: fieldOf(f.protein), carbs: fieldOf(f.carbs), fat: fieldOf(f.fat) });
+  };
+
+  /** 加入／移出常吃的食物（以名稱辨識） */
+  const toggleFavorite = async () => {
+    try {
+      if (currentFavorite) {
+        await repo.deleteFoodFavorite(currentFavorite.id);
+        return showToast(`已從常吃的食物移除「${currentFavorite.name}」`);
+      }
+      const n = name.trim();
+      const k = parseNumber(kcal);
+      if (!n) return showToast('先填名稱，才能加入常吃的食物');
+      if (k === null || k < 0 || k > MAX_KCAL) return showToast(`熱量請輸入 0–${MAX_KCAL} kcal`);
+      const fav: FoodFavorite = { id: createId(), name: n, kcal: k };
+      for (const { key } of MACROS) {
+        const g = parseNumber(macros[key]);
+        if (g !== null && g >= 0 && g <= 1000) fav[key] = g;
+      }
+      await repo.saveFoodFavorite(fav);
+      showToast(`已加入常吃的食物：${n}`);
+    } catch (err) {
+      showToast(errorMessage(err));
+    }
   };
 
   const save = async () => {
@@ -190,6 +217,20 @@ export function FoodEntrySheet({ initial, date, onClose }: Props) {
           />
         </div>
 
+        {!initial && favorites.length > 0 && (
+          <div class="field">
+            <span class="field-label">常吃的食物</span>
+            <div class="chips">
+              {favorites.map((f) => (
+                <button key={f.id} type="button" class="chip chip-sm" onClick={() => fillFrom(f)}>
+                  ★ {f.name}
+                  <span class="muted">&nbsp;{formatNumber(f.kcal)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {recent.length > 0 && (
           <div class="field">
             <span class="field-label">最近吃過</span>
@@ -221,16 +262,31 @@ export function FoodEntrySheet({ initial, date, onClose }: Props) {
           </div>
         </div>
 
-        <label class="field">
-          <span class="field-label">名稱</span>
-          <input
-            class="input"
-            value={name}
-            maxLength={40}
-            placeholder={`例如：雞胸便當（沒填就叫「${MEAL_LABELS[meal]}」）`}
-            onInput={(e) => setName(e.currentTarget.value)}
-          />
-        </label>
+        <div class="field">
+          <label class="field-label" for="food-name">
+            名稱
+          </label>
+          <div class="input-with-action">
+            <input
+              id="food-name"
+              class="input"
+              value={name}
+              maxLength={40}
+              placeholder={`例如：雞胸便當（沒填就叫「${MEAL_LABELS[meal]}」）`}
+              onInput={(e) => setName(e.currentTarget.value)}
+            />
+            <button
+              type="button"
+              class={currentFavorite ? 'fav-btn is-active' : 'fav-btn'}
+              aria-pressed={Boolean(currentFavorite)}
+              aria-label={currentFavorite ? '從常吃的食物移除' : '加入常吃的食物'}
+              onClick={() => void toggleFavorite()}
+            >
+              {currentFavorite ? '★' : '☆'}
+              <span>常吃</span>
+            </button>
+          </div>
+        </div>
 
         <label class="big-field">
           <span class="field-label">熱量</span>

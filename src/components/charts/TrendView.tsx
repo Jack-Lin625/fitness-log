@@ -5,8 +5,8 @@ import { navigate } from '../../hooks/useHashRoute';
 import { useRepository } from '../../hooks/useRepository';
 import { longDate, shortDate, toTime } from '../../lib/chart';
 import { addDays, formatDateLabel, todayString } from '../../lib/date';
-import { formatNumber } from '../../lib/number';
 import { computeRecords, e1rmTrend } from '../../lib/records';
+import { formatWeight, toDisplay, unitLabel } from '../../lib/units';
 import { BODY_PARTS, BODY_PART_LABELS, type Exercise } from '../../types/models';
 import { useState } from 'preact/hooks';
 
@@ -24,6 +24,10 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
   const repo = useRepository();
   const sessions = repo.getSessions();
   const [range, setRange] = useState<Range>('6m');
+  const unit = repo.getWeightUnit();
+  const u = unitLabel(unit);
+  /** 圖表上的數值：換成目前單位，取到 0.1 */
+  const chartValue = (kg: number) => Math.round(toDisplay(kg, unit) * 10) / 10;
 
   // 只列出「有可估算 1RM 的紀錄」且非自體重量的動作
   const records = computeRecords(sessions);
@@ -36,7 +40,7 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
     return (
       <EmptyState
         title="還沒有可以畫趨勢的紀錄"
-        body="記錄 1 到 10 下的正式組（例如深蹲 100 kg × 5）後，這裡會畫出估算 1RM 的變化。"
+        body={`記錄 1 到 10 下的正式組（例如深蹲 100 ${u} × 5）後，這裡會畫出估算 1RM 的變化。`}
       />
     );
   }
@@ -77,14 +81,14 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
 
       <div class="stat-row">
         <BigStat
-          value={record?.bestE1rm ? formatNumber(Math.round(record.bestE1rm.value * 10) / 10) : '–'}
-          unit="kg"
+          value={record?.bestE1rm ? formatWeight(Math.round(record.bestE1rm.value * 10) / 10, unit) : '–'}
+          unit={u}
           label="最佳估算 1RM"
           {...(record?.bestE1rm ? { hint: formatDateLabel(record.bestE1rm.date) } : {})}
         />
         <BigStat
-          value={record?.bestWeight ? formatNumber(record.bestWeight.set.weight) : '–'}
-          unit="kg"
+          value={record?.bestWeight ? formatWeight(record.bestWeight.set.weight, unit) : '–'}
+          unit={u}
           label="最大重量"
           {...(record?.bestWeight
             ? { hint: `× ${record.bestWeight.set.reps} 下，${formatDateLabel(record.bestWeight.date)}` }
@@ -111,14 +115,14 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
       ) : (
         <ChartCanvas
           label={`${selected.name} 估算 1RM 趨勢，共 ${points.length} 次紀錄`}
-          deps={[selected.id, range, points.length, points.map((p) => p.e1rm).join()]}
+          deps={[selected.id, range, unit, points.length, points.map((p) => p.e1rm).join()]}
           build={(t) => ({
             type: 'line',
             data: {
               datasets: [
                 {
                   label: '估算 1RM',
-                  data: points.map((p) => ({ x: toTime(p.date), y: Math.round(p.e1rm * 10) / 10 })),
+                  data: points.map((p) => ({ x: toTime(p.date), y: chartValue(p.e1rm) })),
                   borderColor: t.accent,
                   backgroundColor: t.accent,
                   borderWidth: 3,
@@ -128,7 +132,7 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
                 },
                 {
                   label: '當次最大重量',
-                  data: points.map((p) => ({ x: toTime(p.date), y: p.topWeight })),
+                  data: points.map((p) => ({ x: toTime(p.date), y: chartValue(p.topWeight) })),
                   borderColor: t.muted,
                   backgroundColor: t.muted,
                   borderWidth: 2,
@@ -179,7 +183,7 @@ export function TrendView({ exerciseId }: { exerciseId: string | undefined }) {
                       if (x === undefined || x === null) return '';
                       return longDate(x);
                     },
-                    label: (item) => ` ${item.dataset.label}：${item.parsed.y} kg`,
+                    label: (item) => ` ${item.dataset.label}：${item.parsed.y} ${u}`,
                   },
                 },
               },

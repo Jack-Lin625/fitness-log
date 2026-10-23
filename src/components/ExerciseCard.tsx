@@ -1,16 +1,24 @@
 import { useState } from 'preact/hooks';
 import type { LastPerformance } from '../data/repository';
 import { formatDateLabel } from '../lib/date';
-import { emptyDraftSet, formatSetShort } from '../lib/draft';
-import { formatNumber, parseNumber, sanitizeDecimalInput, sanitizeIntInput } from '../lib/number';
-import { plateText, warmupConfig, warmupLadder } from '../lib/warmupSets';
+import { emptyDraftSet, formatSetShort, type SupersetInfo } from '../lib/draft';
+import { formatDuration, formatNumber, parseNumber, sanitizeDecimalInput, sanitizeIntInput } from '../lib/number';
+import { suggestNext, type Suggestion } from '../lib/progression';
+import { setRecordKinds, type ExerciseRecord, type RecordKind } from '../lib/records';
+import { formatWeight, fromDisplay, LB_PLATES, unitLabel, unitName } from '../lib/units';
+import { plateText, warmupConfigFor, warmupLadder } from '../lib/warmupSets';
 import { useRepository } from '../hooks/useRepository';
-import type { DraftExercise, DraftSet, Exercise } from '../types/models';
+import type { DraftExercise, DraftSet, Exercise, WeightUnit, WorkoutSet } from '../types/models';
 import { EQUIPMENT_LABELS, MUSCLE_LABELS } from '../data/catalog';
 import { EquipmentIcon } from './EquipmentIcon';
 import { ExerciseGuideSheet } from './ExerciseGuideSheet';
 import { hasGuide } from '../data/exerciseGuides';
 import { showToast } from './Toast';
+
+/** 休息時間的選項（秒） */
+const REST_OPTIONS = [30, 45, 60, 90, 120, 150, 180, 240, 300];
+
+const RECORD_LABEL: Record<RecordKind, string> = { weight: '最大重量', e1rm: '估算 1RM', reps: '最多次數' };
 
 interface Props {
   exercise: Exercise | undefined;
@@ -19,26 +27,68 @@ interface Props {
   total: number;
   /** 上次做這個動作的紀錄，用來顯示提示與輸入框的預設值 */
   last: LastPerformance | null;
+  /** 這次之前的最佳紀錄，用來在勾選完成時即時提示破紀錄 */
+  prior: ExerciseRecord | undefined;
+  /** 所屬的超級組（不在超級組為 null） */
+  superset: SupersetInfo | null;
   onChange: (next: DraftExercise) => void;
   onRemove: () => void;
   onMove: (delta: -1 | 1) => void;
-  /** 勾選完成一組時呼叫（用來啟動休息計時器） */
+  /** 和下一個動作組成超級組／取消超級組 */
+  onToggleSuperset: () => void;
+  /** 勾選完成一組正式組時呼叫（用來啟動休息計時器） */
   onSetCompleted: () => void;
+}
+
+/** 草稿的一組 → 公斤制的 WorkoutSet（判斷破紀錄用） */
+function toWorkoutSet(set: DraftSet, unit: WeightUnit): WorkoutSet | null {
+  const reps = parseNumber(set.reps);
+  if (reps === null || reps <= 0) return null;
+  return { weight: fromDisplay(parseNumber(set.weight) ?? 0, unit), reps: Math.round(reps), isWarmup: set.isWarmup };
+}
+
+/** 建議的文字，例如「82.5 kg × 5」「每組 9 下」 */
+function suggestionText(s: Suggestion, unit: WeightUnit, assisted: boolean): string {
+  const w = `${formatWeight(s.weight, unit)} ${unitLabel(unit)}`;
+  switch (s.kind) {
+    case 'increase':
+      return `加重到 ${w} × ${s.reps}`;
+    case 'lessAssist':
+      return `輔助減到 ${w} × ${s.reps}`;
+    case 'reps':
+      return `每組做到 ${s.reps} 下`;
+    case 'hold':
+      if (s.weight <= 0) return `維持每組 ${s.reps} 下，把每組都做滿`;
+      return `${assisted ? '輔助' : ''}維持 ${w}，目標每組 ${s.reps} 下`;
+  }
 }
 
 /** 訓練畫面中的一個動作：組數表格、上次紀錄、加組與刪除 */
 export function ExerciseCard(props: Props) {
-  const { exercise, value, last } = props;
+  const { exercise, value, last, prior, superset } = props;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [openSet, setOpenSet] = useState<number | null>(null);
+  const [openSet, setOpenSet] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const repo = useRepository();
   const isBodyweight = exercise?.isBodyweight ?? false;
   const assisted = exercise?.assisted === true;
-  const settings = useRepository().getSettings();
-  const warmCfg = exercise && !isBodyweight ? warmupConfig(exercise.equipment, settings.barWeight) : null;
+  const traits = { bodyweight: isBodyweight, assisted };
+  const settings = repo.getSettings();
+  const unit = repo.getWeightUnit();
+  const unitText = unitLabel(unit);
+  const warmCfg = exercise && !isBodyweight ? warmupConfigFor(exercise.equipment, settings.barWeight, unit) : null;
   const hasWarmups = value.sets.some((s) => s.isWarmup);
   /** 槓鈴類才顯示每邊槓片 */
   const showPlates = warmCfg !== null && warmCfg.bar > 0;
+  const barForPlates = unit === 'lb' ? (warmCfg?.bar ?? 0) : settings.barWeight;
+  const platesForUnit = unit === 'lb' ? LB_PLATES : settings.availablePlates;
+  const restSeconds = exercise ? repo.restSecondsFor(exercise.id) : settings.defaultRestSeconds;
+  const hasCustomRest = exercise ? settings.restByExercise?.[exercise.id] !== undefined : false;
+
+  /** 一次能加的重量（公斤）：依器材與單位 */
+  const stepKg = fromDisplay(warmCfg?.step ?? (unit === 'lb' ? (assisted ? 10 : 5) : assisted ? 5 : 2.5), unit);
+  const suggestion = last ? suggestNext(last.sets, traits, stepKg) : null;
 
   const updateSet = (i: number, patch: Partial<DraftSet>) =>
     props.onChange({ ...value, sets: value.sets.map((s, j) => (j === i ? { ...s, ...patch } : s)) });
@@ -52,7 +102,7 @@ export function ExerciseCard(props: Props) {
     if (set) {
       const ordinal = value.sets.slice(0, i).filter((x) => x.isWarmup === set.isWarmup).length;
       const lastSet = last?.sets.filter((x) => (x.isWarmup ?? false) === set.isWarmup)[ordinal];
-      if (lastSet) return { weight: formatNumber(lastSet.weight), reps: String(lastSet.reps) };
+      if (lastSet) return { weight: formatWeight(lastSet.weight, unit), reps: String(lastSet.reps) };
     }
     const prev = value.sets[i - 1];
     return { weight: prev?.weight ?? '', reps: prev?.reps ?? '' };
@@ -68,11 +118,10 @@ export function ExerciseCard(props: Props) {
     const plan = warmupLadder(work, warmCfg.step, warmCfg.bar);
     if (plan.length === 0) return showToast('這個重量不需要熱身組');
     const warmups: DraftSet[] = plan.map((p) => ({
+      ...emptyDraftSet(),
       weight: formatNumber(p.weight),
       reps: String(p.reps),
-      rpe: '',
       isWarmup: true,
-      completed: false,
     }));
     // 先固定住正式組的重量（避免預設值因為插入熱身組而跑掉）
     const working = value.sets
@@ -81,6 +130,22 @@ export function ExerciseCard(props: Props) {
     props.onChange({ ...value, sets: [...warmups, ...working] });
     setMenuOpen(false);
     showToast(`已加入 ${plan.length} 組熱身組`);
+  };
+
+  /** 把建議的重量、次數填進還沒完成的正式組（使用者按了才填，會取代複製來的數字） */
+  const applySuggestion = () => {
+    if (!suggestion) return;
+    const weight = suggestion.weight > 0 || !isBodyweight ? formatWeight(suggestion.weight, unit) : '';
+    const reps = String(suggestion.reps);
+    const sets = value.sets.map((s) => (s.isWarmup || s.completed ? s : { ...s, weight, reps }));
+    props.onChange({ ...value, sets });
+  };
+
+  /** 這組（已完成）打破的紀錄 */
+  const recordsOf = (set: DraftSet): RecordKind[] => {
+    if (!set.completed) return [];
+    const ws = toWorkoutSet(set, unit);
+    return ws ? setRecordKinds(ws, prior, traits) : [];
   };
 
   /** 勾選完成：空白欄位自動填入預設值，並開始休息計時 */
@@ -93,9 +158,13 @@ export function ExerciseCard(props: Props) {
     const weight = set.weight || ph.weight || (isBodyweight ? '0' : '');
     const reps = set.reps || ph.reps;
     if (!reps) return showToast('先填這組的次數');
+    const done = { ...set, weight, reps, completed: true };
     updateSet(i, { weight, reps, completed: true });
     // 熱身組之間通常不需要完整休息，只有正式組才自動開始計時
     if (!set.isWarmup) props.onSetCompleted();
+
+    const kinds = recordsOf(done);
+    if (kinds.length > 0) showToast(`新紀錄！${exercise?.name ?? ''} ${kinds.map((k) => RECORD_LABEL[k]).join('、')}`, 3500);
   };
 
   const addSet = () => {
@@ -108,12 +177,31 @@ export function ExerciseCard(props: Props) {
     setOpenSet(null);
   };
 
+  const changeRest = (raw: string) => {
+    if (!exercise) return;
+    const seconds = raw === '' ? null : Number(raw);
+    repo.setExerciseRest(exercise.id, seconds).catch(() => showToast('休息時間沒有存成功'));
+  };
+
   // 正式組的編號（熱身組不佔編號）
   let workingNo = 0;
   const lastWorking = last?.sets.filter((s) => !s.isWarmup) ?? [];
+  const showNote = noteOpen || Boolean(value.note);
+  const cardClass = ['ex-card', superset ? 'is-superset' : '', superset && superset.position > 0 ? 'is-superset-next' : '']
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <article class="ex-card">
+    <article class={cardClass}>
+      {superset && (
+        <p class="superset-tag">
+          超級組 {superset.label}
+          {superset.position + 1}
+          <span class="muted">
+            {superset.position < superset.size - 1 ? '：做完一組接著做下一個動作' : '：這組做完再休息'}
+          </span>
+        </p>
+      )}
       <header class="ex-head">
         {exercise && (
           <span class="eq-tile" style={{ width: '52px', height: '52px' }}>
@@ -163,22 +251,90 @@ export function ExerciseCard(props: Props) {
               {hasWarmups ? '重新計算熱身組' : '加入熱身組'}
             </button>
           )}
+          {!showNote && (
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onClick={() => {
+                setNoteOpen(true);
+                setMenuOpen(false);
+              }}
+            >
+              加備註
+            </button>
+          )}
+          {(superset || props.index < props.total - 1) && (
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onClick={() => {
+                props.onToggleSuperset();
+                setMenuOpen(false);
+              }}
+            >
+              {superset ? '取消超級組' : '和下一個動作做超級組'}
+            </button>
+          )}
+          {exercise && (
+            <label class="ex-menu-rest">
+              <span>休息</span>
+              <select
+                class="input select select-sm"
+                value={hasCustomRest ? String(restSeconds) : ''}
+                onChange={(e) => changeRest(e.currentTarget.value)}
+              >
+                <option value="">預設 {formatDuration(settings.defaultRestSeconds)}</option>
+                {REST_OPTIONS.map((sec) => (
+                  <option key={sec} value={String(sec)}>
+                    {formatDuration(sec)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button type="button" class="btn btn-danger-text btn-sm" onClick={props.onRemove}>
             刪除動作
           </button>
         </div>
       )}
 
+      {showNote && (
+        <label class="ex-note">
+          <span class="visually-hidden">動作備註</span>
+          <input
+            class="input input-sm"
+            maxLength={100}
+            placeholder={last?.note ? `上次：${last.note}` : '例如：座椅第 4 格、握距比肩寬'}
+            value={value.note ?? ''}
+            onInput={(e) => props.onChange({ ...value, note: e.currentTarget.value })}
+          />
+        </label>
+      )}
+
       {last && lastWorking.length > 0 && (
         <p class="ex-last">
           上次 {formatDateLabel(last.date)}：
-          <span class="num">{lastWorking.map((s) => formatSetShort(s, isBodyweight, assisted)).join('、')}</span>
+          <span class="num">{lastWorking.map((s) => formatSetShort(s, isBodyweight, assisted, unit)).join('、')}</span>
+          {hasCustomRest && <span class="muted">｜休息 {formatDuration(restSeconds)}</span>}
         </p>
+      )}
+      {!showNote && last?.note && <p class="ex-last ex-last-note">備註：{last.note}</p>}
+
+      {suggestion && value.sets.some((s) => !s.isWarmup && !s.completed) && (
+        <div class="ex-suggest">
+          <span>
+            <span class="ex-suggest-label">建議</span>
+            {suggestionText(suggestion, unit, assisted)}
+          </span>
+          <button type="button" class="btn btn-ghost btn-sm" onClick={applySuggestion}>
+            套用
+          </button>
+        </div>
       )}
 
       <div class="set-grid set-grid-head" aria-hidden="true">
         <span>組</span>
-        <span>{assisted ? '輔助公斤' : isBodyweight ? '+公斤' : '公斤'}</span>
+        <span>{assisted ? `輔助${unitText}` : isBodyweight ? `+${unitText}` : unitText}</span>
         <span>次數</span>
         <span>RPE</span>
         <span>完成</span>
@@ -187,22 +343,23 @@ export function ExerciseCard(props: Props) {
       {value.sets.map((set, i) => {
         if (!set.isWarmup) workingNo++;
         const ph = placeholderOf(i);
+        const records = recordsOf(set);
         return (
-          <div key={i}>
+          <div key={set.key}>
             <div class={set.completed ? 'set-grid set-row is-done' : 'set-grid set-row'}>
               <button
                 type="button"
                 class={set.isWarmup ? 'set-no is-warmup' : 'set-no'}
                 aria-label={`第 ${i + 1} 組選項`}
-                aria-expanded={openSet === i}
-                onClick={() => setOpenSet(openSet === i ? null : i)}
+                aria-expanded={openSet === set.key}
+                onClick={() => setOpenSet(openSet === set.key ? null : set.key)}
               >
                 {set.isWarmup ? '熱' : workingNo}
               </button>
               <input
                 class="set-input num"
                 inputMode="decimal"
-                aria-label={assisted ? '輔助重量（公斤）' : '重量（公斤）'}
+                aria-label={assisted ? `輔助重量（${unitName(unit)}）` : `重量（${unitName(unit)}）`}
                 placeholder={ph.weight || (isBodyweight ? '0' : '')}
                 value={set.weight}
                 onInput={(e) => updateSet(i, { weight: sanitizeDecimalInput(e.currentTarget.value) })}
@@ -237,13 +394,20 @@ export function ExerciseCard(props: Props) {
               </button>
             </div>
 
+            {records.length > 0 && (
+              <p class="set-pr">
+                <span class="tag tag-pr">PR</span>
+                {records.map((k) => RECORD_LABEL[k]).join('、')}
+              </p>
+            )}
+
             {showPlates && (() => {
               const w = parseNumber(set.weight || ph.weight);
-              const text = w !== null ? plateText(w, warmCfg!.bar, settings.availablePlates) : null;
+              const text = w !== null ? plateText(w, barForPlates, platesForUnit) : null;
               return text ? <p class="set-plates">{text}</p> : null;
             })()}
 
-            {openSet === i && (
+            {openSet === set.key && (
               <div class="set-menu">
                 <button
                   type="button"

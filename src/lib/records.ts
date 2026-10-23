@@ -161,3 +161,26 @@ export function e1rmTrend(sessions: WorkoutSession[], exerciseId: string): Trend
   }
   return points;
 }
+
+/**
+ * 訓練進行中：這一組是否打破「之前」的紀錄（勾選完成時即時提示）。
+ * 規則與 findNewRecords 相同：第一次做的動作不算、輔助機器不算重量紀錄、
+ * 自體重量動作比次數、其他動作比估算 1RM。
+ */
+export function setRecordKinds(
+  set: WorkoutSet,
+  prior: ExerciseRecord | undefined,
+  traits: { bodyweight: boolean; assisted: boolean },
+): RecordKind[] {
+  if (!prior || set.isWarmup || set.reps <= 0) return [];
+  const kinds: RecordKind[] = [];
+  const prevWeight = prior.bestWeight?.set.weight ?? 0;
+  if (!traits.assisted && set.weight > 0 && set.weight > prevWeight + EPSILON) kinds.push('weight');
+  if (traits.bodyweight) {
+    if (set.reps > (prior.bestReps?.set.reps ?? 0)) kinds.push('reps');
+  } else {
+    const e = setE1rm(set);
+    if (e !== null && prior.bestE1rm && e > prior.bestE1rm.value + EPSILON) kinds.push('e1rm');
+  }
+  return kinds;
+}

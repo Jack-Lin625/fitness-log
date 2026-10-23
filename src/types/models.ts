@@ -85,7 +85,10 @@ export interface WorkoutSet {
 export interface SessionExercise {
   exerciseId: string;
   sets: WorkoutSet[];
+  /** 這個動作的備註，例如座椅高度、握距 */
   note?: string;
+  /** 超級組：相鄰且 supersetId 相同的動作輪流做 */
+  supersetId?: string;
 }
 
 /** 一次訓練 */
@@ -95,8 +98,18 @@ export interface WorkoutSession {
   date: string;
   exercises: SessionExercise[];
   note?: string;
+  /** 訓練時長（秒），從開始訓練到按下完成；補登或修改的紀錄沒有 */
+  durationSec?: number;
   createdAt: number;
   updatedAt: number;
+}
+
+/** 菜單範本：常練的動作與組數，開始訓練時一鍵帶入 */
+export interface WorkoutTemplate {
+  id: string;
+  name: string;
+  exercises: SessionExercise[];
+  createdAt: number;
 }
 
 /** 體態紀錄（除日期外皆選填） */
@@ -116,6 +129,9 @@ export interface BodyMetric {
   arm?: number;
 }
 
+/** 訓練重量的單位（資料一律以公斤儲存，只有輸入與顯示換算） */
+export type WeightUnit = 'kg' | 'lb';
+
 /** 使用者設定 */
 export interface Settings {
   /** 組間休息預設秒數 */
@@ -132,6 +148,10 @@ export interface Settings {
   stretchSeconds?: number;
   /** 拉伸時加入滾筒放鬆 */
   stretchRoller?: boolean;
+  /** 訓練重量單位（未設定為公斤） */
+  weightUnit?: WeightUnit;
+  /** 個別動作的休息秒數（動作 id → 秒），沒設定的用 defaultRestSeconds */
+  restByExercise?: Record<string, number>;
 }
 
 /*
@@ -188,6 +208,16 @@ export interface FoodEntry {
   createdAt: number;
 }
 
+/** 常吃的食物，記錄時一鍵帶入 */
+export interface FoodFavorite {
+  id: string;
+  name: string;
+  kcal: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+
 /*
  * ───────── 訓練草稿 ─────────
  * 訓練進行中的暫存資料。欄位用字串而非數字，是為了保留使用者正在輸入的內容
@@ -196,6 +226,8 @@ export interface FoodEntry {
 
 /** 草稿中的一組 */
 export interface DraftSet {
+  /** 畫面用的穩定識別碼，刪除中間某一組時其他組的狀態不會錯位 */
+  key: string;
   weight: string;
   reps: string;
   rpe: string;
@@ -210,6 +242,8 @@ export interface DraftExercise {
   key: string;
   exerciseId: string;
   sets: DraftSet[];
+  note?: string;
+  supersetId?: string;
 }
 
 /** 進行中的訓練（同一時間最多一份） */
@@ -224,7 +258,7 @@ export interface WorkoutDraft {
 }
 
 /** 目前資料格式版本 */
-export const CURRENT_DATA_VERSION = 4;
+export const CURRENT_DATA_VERSION = 5;
 
 /**
  * localStorage 中實際儲存的根物件。
@@ -243,4 +277,8 @@ export interface AppData {
   nutritionProfile: NutritionProfile | null;
   /** 飲食紀錄（v4 新增） */
   foodEntries: FoodEntry[];
+  /** 菜單範本（v5 新增） */
+  templates: WorkoutTemplate[];
+  /** 常吃的食物（v5 新增） */
+  foodFavorites: FoodFavorite[];
 }

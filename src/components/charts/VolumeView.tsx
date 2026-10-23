@@ -4,6 +4,7 @@ import { EmptyState } from '../EmptyState';
 import { useRepository } from '../../hooks/useRepository';
 import { addDays, startOfWeek } from '../../lib/date';
 import { formatVolume, volumeByBodyPart } from '../../lib/volume';
+import { toDisplay, unitLabel } from '../../lib/units';
 import { BODY_PARTS, BODY_PART_LABELS, type BodyPart, type Exercise, type WorkoutSession } from '../../types/models';
 
 type Metric = 'volume' | 'sets';
@@ -25,6 +26,7 @@ export function VolumeView() {
   const sessions = repo.getSessions();
   const [weeks, setWeeks] = useState(8);
   const [metric, setMetric] = useState<Metric>('volume');
+  const weightUnit = repo.getWeightUnit();
 
   if (sessions.length === 0) {
     return <EmptyState title="還沒有訓練紀錄" body="完成幾次訓練後，這裡會顯示每週各部位的訓練量。" />;
@@ -36,7 +38,10 @@ export function VolumeView() {
   const getEx = (id: string) => repo.getExercise(id);
   const data = weekStarts.map((start) => {
     const inWeek = sessions.filter((s) => s.date >= start && s.date < addDays(start, 7));
-    return metric === 'volume' ? volumeByBodyPart(inWeek, getEx) : setsByBodyPart(inWeek, getEx);
+    if (metric === 'sets') return setsByBodyPart(inWeek, getEx);
+    // 容量換成目前的重量單位
+    const kg = volumeByBodyPart(inWeek, getEx);
+    return Object.fromEntries(BODY_PARTS.map((p) => [p, toDisplay(kg[p], weightUnit)])) as Record<BodyPart, number>;
   });
   // 本週還沒練就顯示上週，避免一整排 0
   const sum = (d: Record<BodyPart, number>) => BODY_PARTS.reduce((n, p) => n + d[p], 0);
@@ -47,7 +52,7 @@ export function VolumeView() {
     const [, m, day] = d.split('-').map(Number);
     return `${m}/${day}`;
   });
-  const unit = metric === 'volume' ? 'kg' : '組';
+  const unit = metric === 'volume' ? unitLabel(weightUnit) : '組';
 
   return (
     <div class="tool">
@@ -88,7 +93,7 @@ export function VolumeView() {
       <ChartCanvas
         height={300}
         label={`近 ${weeks} 週各部位${metric === 'volume' ? '訓練容量' : '組數'}長條圖`}
-        deps={[weeks, metric, sessions.length, JSON.stringify(data)]}
+        deps={[weeks, metric, weightUnit, sessions.length, JSON.stringify(data)]}
         build={(t) => ({
           type: 'bar',
           data: {

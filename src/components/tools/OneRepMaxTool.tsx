@@ -1,4 +1,6 @@
 import { useState } from 'preact/hooks';
+import { useRepository } from '../../hooks/useRepository';
+import { unitLabel } from '../../lib/units';
 import { formatNumber, parseNumber, sanitizeDecimalInput, sanitizeIntInput } from '../../lib/number';
 import {
   averageOneRepMax,
@@ -14,6 +16,10 @@ import {
 export function OneRepMaxTool() {
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
+  const unit = useRepository().getWeightUnit();
+  const u = unitLabel(unit);
+  /** 百分比表取整：公斤到 2.5（一對 1.25 槓片），磅到 5（一對 2.5 lb） */
+  const step = unit === 'lb' ? 5 : 2.5;
 
   const w = parseNumber(weight) ?? 0;
   const r = Math.min(parseNumber(reps) ?? 0, MAX_REPS);
@@ -33,7 +39,7 @@ export function OneRepMaxTool() {
               value={weight}
               onInput={(e) => setWeight(sanitizeDecimalInput(e.currentTarget.value))}
             />
-            <span class="big-input-unit">kg</span>
+            <span class="big-input-unit">{u}</span>
           </span>
         </label>
         <span class="tool-times" aria-hidden="true">
@@ -58,14 +64,14 @@ export function OneRepMaxTool() {
         <div class="big-stat">
           <div class="big-stat-value">
             <span class="num">{ready ? formatNumber(Math.round(epley(w, r) * 10) / 10) : '–'}</span>
-            <span class="big-stat-unit">kg</span>
+            <span class="big-stat-unit">{u}</span>
           </div>
           <div class="big-stat-label">Epley 公式</div>
         </div>
         <div class="big-stat">
           <div class="big-stat-value">
             <span class="num">{ready ? formatNumber(Math.round(brzycki(w, r) * 10) / 10) : '–'}</span>
-            <span class="big-stat-unit">kg</span>
+            <span class="big-stat-unit">{u}</span>
           </div>
           <div class="big-stat-label">Brzycki 公式</div>
         </div>
@@ -81,7 +87,7 @@ export function OneRepMaxTool() {
 
       {ready && (
         <section class="section">
-          <h2 class="section-title">訓練強度對照（以兩公式平均，取整到 2.5 kg）</h2>
+          <h2 class="section-title">訓練強度對照（以兩公式平均，取整到 {step} {u}）</h2>
           <table class="pct-table">
             <tbody>
               {PERCENTAGES.map((p) => (
@@ -90,7 +96,7 @@ export function OneRepMaxTool() {
                     {p}%
                   </th>
                   <td>
-                    <span class="num">{formatNumber(roundTo((avg * p) / 100))}</span> kg
+                    <span class="num">{formatNumber(roundTo((avg * p) / 100, step))}</span> {u}
                   </td>
                 </tr>
               ))}

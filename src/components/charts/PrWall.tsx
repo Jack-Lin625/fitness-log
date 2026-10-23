@@ -3,6 +3,7 @@ import { useRepository } from '../../hooks/useRepository';
 import { addDays, formatDateLabel, todayString } from '../../lib/date';
 import { formatNumber } from '../../lib/number';
 import { chronological, computeRecords, type ExerciseRecord, type SetRef } from '../../lib/records';
+import { formatWeight, unitLabel } from '../../lib/units';
 
 /** 最近幾天內創下的紀錄會標示「新」 */
 const NEW_DAYS = 7;
@@ -23,6 +24,8 @@ export function PrWall() {
   const repo = useRepository();
   const sessions = repo.getSessions();
   const records = [...computeRecords(sessions).values()];
+  const unit = repo.getWeightUnit();
+  const u = unitLabel(unit);
 
   // 每個動作第一次出現的日期：第一次的成績不算「新紀錄」
   const firstDate = new Map<string, string>();
@@ -69,7 +72,7 @@ export function PrWall() {
                     <div class="pr-stat">
                       <span class="pr-label">最大負重</span>
                       <span class="pr-value">
-                        <span class="num">+{formatNumber(r.bestWeight.set.weight)}</span> kg
+                        <span class="num">+{formatWeight(r.bestWeight.set.weight, unit)}</span> {u}
                       </span>
                       <SetDetail item={r.bestWeight} />
                     </div>
@@ -81,7 +84,7 @@ export function PrWall() {
                     <div class="pr-stat">
                       <span class="pr-label">最大重量</span>
                       <span class="pr-value">
-                        <span class="num">{formatNumber(r.bestWeight.set.weight)}</span> kg
+                        <span class="num">{formatWeight(r.bestWeight.set.weight, unit)}</span> {u}
                       </span>
                       <SetDetail item={r.bestWeight} />
                     </div>
@@ -90,10 +93,10 @@ export function PrWall() {
                     <div class="pr-stat">
                       <span class="pr-label">估算 1RM</span>
                       <span class="pr-value">
-                        <span class="num">{formatNumber(Math.round(r.bestE1rm.value * 10) / 10)}</span> kg
+                        <span class="num">{formatWeight(Math.round(r.bestE1rm.value * 10) / 10, unit)}</span> {u}
                       </span>
                       <span class="pr-detail">
-                        {formatNumber(r.bestE1rm.set.weight)}×{r.bestE1rm.set.reps}
+                        {formatWeight(r.bestE1rm.set.weight, unit)}×{r.bestE1rm.set.reps}
                         {r.bestE1rm.set.rpe !== undefined && <>，RPE {formatNumber(r.bestE1rm.set.rpe)}</>}，
                         {formatDateLabel(r.bestE1rm.date)}
                       </span>

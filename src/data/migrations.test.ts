@@ -44,7 +44,13 @@ describe('migrate：進行中的草稿', () => {
     startedAt: 5,
     editingSessionId: 's9',
     exercises: [
-      { key: 'k1', exerciseId: 'squat', sets: [{ weight: '80', reps: '5', rpe: '', isWarmup: false, completed: true }] },
+      {
+        key: 'k1',
+        exerciseId: 'squat',
+        note: '座椅 4 格',
+        supersetId: 'ss',
+        sets: [{ key: 's1', weight: '80', reps: '5', rpe: '', isWarmup: false, completed: true }],
+      },
     ],
   };
 
@@ -58,7 +64,15 @@ describe('migrate：進行中的草稿', () => {
       activeDraft: { id: 'd2', date: '2026-10-22', exercises: [{ key: 'k', exerciseId: 'bench-press', sets: [{ weight: '60' }] }] },
     }).activeDraft;
     expect(draft).toMatchObject({ id: 'd2', note: '' });
-    expect(draft?.exercises[0]?.sets[0]).toEqual({ weight: '60', reps: '', rpe: '', isWarmup: false, completed: false });
+    // 舊版草稿的組沒有 key，補上一個
+    expect(draft?.exercises[0]?.sets[0]).toEqual({
+      key: expect.any(String),
+      weight: '60',
+      reps: '',
+      rpe: '',
+      isWarmup: false,
+      completed: false,
+    });
     expect(typeof draft?.startedAt).toBe('number');
     expect(draft).not.toHaveProperty('editingSessionId');
   });
@@ -127,7 +141,7 @@ describe('migrate：設定、自訂動作、體態的型別檢查', () => {
 describe('migrate：飲食（v4）', () => {
   it('v3 資料升級後有空的飲食欄位', () => {
     const data = migrate({ version: 3, customExercises: [], sessions: [], bodyMetrics: [], settings: {}, activeDraft: null });
-    expect(data.version).toBe(4);
+    expect(data.version).toBe(CURRENT_DATA_VERSION);
     expect(data.nutritionProfile).toBeNull();
     expect(data.foodEntries).toEqual([]);
   });
@@ -155,5 +169,66 @@ describe('migrate：飲食（v4）', () => {
       { id: 'a', date: '2026-10-20', meal: 'lunch', name: '雞胸便當', kcal: 650, protein: 45, photoId: 'p1', createdAt: 5 },
       { id: 'b', date: '2026-10-20', meal: 'snack', name: '蛋餅', kcal: 300, createdAt: 0 },
     ]);
+  });
+});
+
+describe('migrate：v5（範本、常吃的食物、動作備註、超級組、時長、單位）', () => {
+  it('v4 資料升級後有空的範本與常吃的食物', () => {
+    const data = migrate({ ...base, version: 4, activeDraft: null, nutritionProfile: null, foodEntries: [] });
+    expect(data.version).toBe(5);
+    expect(data.templates).toEqual([]);
+    expect(data.foodFavorites).toEqual([]);
+  });
+
+  it('訓練：保留有效的動作備註、超級組與時長，無效的捨棄', () => {
+    const [s] = migrate({
+      ...base,
+      sessions: [
+        {
+          id: 'a',
+          date: '2026-10-01',
+          durationSec: 3000,
+          exercises: [
+            { exerciseId: 'squat', note: '低槓', supersetId: 'x', sets: [{ weight: 100, reps: 5 }] },
+            { exerciseId: 'bench-press', note: 5, supersetId: '', sets: [{ weight: 60, reps: 5 }] },
+          ],
+        },
+      ],
+    }).sessions;
+    expect(s?.durationSec).toBe(3000);
+    expect(s?.exercises[0]).toMatchObject({ note: '低槓', supersetId: 'x' });
+    expect(s?.exercises[1]).toEqual({ exerciseId: 'bench-press', sets: [{ weight: 60, reps: 5 }] });
+    expect(migrate({ ...base, sessions: [{ ...s, durationSec: -1 }] }).sessions[0]).not.toHaveProperty('durationSec');
+  });
+
+  it('範本：結構錯誤或沒有動作的捨棄', () => {
+    const ok = { id: 't1', name: '腿日', createdAt: 1, exercises: [{ exerciseId: 'squat', sets: [{ weight: 100, reps: 5 }] }] };
+    const { templates } = migrate({
+      ...base,
+      templates: [ok, { id: 't2', name: '空的', exercises: [] }, { id: 't3', exercises: [] }, { ...ok, id: 't4', exercises: [{ sets: [] }] }],
+    });
+    expect(templates.map((t) => t.id)).toEqual(['t1']);
+  });
+
+  it('常吃的食物：名稱、熱量必須有效', () => {
+    const { foodFavorites } = migrate({
+      ...base,
+      foodFavorites: [
+        { id: 'f1', name: '雞胸', kcal: 165, protein: 31, fat: 'x' },
+        { id: 'f2', name: '', kcal: 100 },
+        { id: 'f3', name: '負的', kcal: -5 },
+      ],
+    });
+    expect(foodFavorites).toEqual([{ id: 'f1', name: '雞胸', kcal: 165, protein: 31 }]);
+  });
+
+  it('設定：單位與個別休息時間只留有效值', () => {
+    const { settings } = migrate({
+      ...base,
+      settings: { weightUnit: 'lb', restByExercise: { squat: 180, curl: -1, row: 'x' } },
+    });
+    expect(settings.weightUnit).toBe('lb');
+    expect(settings.restByExercise).toEqual({ squat: 180 });
+    expect(migrate({ ...base, settings: { weightUnit: 'stone' } }).settings).not.toHaveProperty('weightUnit');
   });
 });

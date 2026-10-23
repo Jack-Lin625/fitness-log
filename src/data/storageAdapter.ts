@@ -1,4 +1,4 @@
-import type { AppData } from '../types/models';
+import type { AppData, WorkoutDraft } from '../types/models';
 
 /**
  * 儲存後端的抽象介面。
@@ -9,11 +9,17 @@ import type { AppData } from '../types/models';
 export interface StorageAdapter {
   /** 讀取原始資料；尚無資料回傳 null；資料損毀則丟出 StorageReadError */
   load(): Promise<unknown>;
-  /** 寫入完整資料 */
+  /** 寫入完整資料（草稿另外存，見 saveDraft） */
   save(data: AppData): Promise<void>;
+  /**
+   * 只寫入進行中的訓練草稿。
+   * 訓練中每次輸入都會暫存，只寫草稿就不必每次都把幾年的紀錄重新序列化一次。
+   * load() 回傳的資料會帶著最新的草稿。
+   */
+  saveDraft(draft: WorkoutDraft | null): Promise<void>;
   /** 把目前的原始內容另存成備份（升級失敗或資料損毀時使用），回傳備份名稱 */
   backupRaw(reason: string): Promise<string | null>;
-  /** 刪除主資料 */
+  /** 刪除主資料、草稿與本機備份 */
   clear(): Promise<void>;
 }
 
