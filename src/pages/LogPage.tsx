@@ -5,14 +5,16 @@ import { BigStat } from '../components/BigStat';
 import { CloudBanner } from '../components/CloudBackup';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
+import { WeeklyReviewCard } from '../components/WeeklyReviewCard';
 import { useRepository } from '../hooks/useRepository';
 import { addDays, formatDateLabel, startOfWeek, todayString } from '../lib/date';
 import { formatSessionDuration } from '../lib/draft';
 import { toDisplay, unitLabel } from '../lib/units';
 import { rotation } from '../lib/rotation';
+import { searchSessions } from '../lib/sessionSearch';
 import { targetStatus } from '../lib/setTargets';
 import { formatVolume, sessionVolume, setsByBodyPart, volumeBetween } from '../lib/volume';
-import { BODY_PARTS, BODY_PART_LABELS, type BodyPart } from '../types/models';
+import { BODY_PARTS, BODY_PART_LABELS, type BodyPart, type WorkoutSession } from '../types/models';
 
 /** 歷史紀錄一次顯示的筆數（練了幾年後清單會很長） */
 const HISTORY_PAGE = 30;
@@ -21,6 +23,7 @@ export function LogPage() {
   const repo = useRepository();
   const sessions = repo.getSessions();
   const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE);
+  const [query, setQuery] = useState('');
   const draft = repo.getDraft();
   const last = sessions[0];
   // 本週與上週（週一起算）
@@ -51,6 +54,30 @@ export function LogPage() {
     const names = exercises.map((e) => e?.name ?? '已刪除的動作');
     const parts = new Set(exercises.map((e) => e?.bodyPart).filter((p): p is BodyPart => !!p));
     return { names, parts: BODY_PARTS.filter((p) => parts.has(p)) };
+  };
+
+  /** 歷史紀錄的一列；notes 是搜尋時符合的備註 */
+  const sessionRow = (s: WorkoutSession, notes: string[]) => {
+    const { names, parts } = describe(s.exercises.map((e) => e.exerciseId));
+    const sets = s.exercises.reduce((n, e) => n + e.sets.length, 0);
+    return (
+      <a href={`#/log/view/${s.id}`} class="session-row">
+        <span class="session-date">{formatDateLabel(s.date)}</span>
+        <span class="session-meta">
+          {s.durationSec !== undefined && <>{formatSessionDuration(s.durationSec)}・</>}
+          <span class="num">{volumeText(sessionVolume(s, repo.isAssisted))}</span> {unitLabel(unit)}
+        </span>
+        <span class="session-names">
+          {sets} 組：{names.join('、')}
+        </span>
+        <span class="session-parts" aria-hidden="true">
+          {parts.map((p) => (
+            <span key={p} class={`part-dot part-${p}`} />
+          ))}
+        </span>
+        {notes.length > 0 && <span class="session-notes">{notes.join('／')}</span>}
+      </a>
+    );
   };
 
   return (
@@ -144,6 +171,8 @@ export function LogPage() {
         </div>
       )}
 
+      <WeeklyReviewCard />
+
       {!draft && templates.length > 0 && (
         <section class="section">
           <h2 class="section-title">我的菜單範本{rotated.length >= 2 && <small class="muted">（依輪替順序）</small>}</h2>
@@ -190,36 +219,42 @@ export function LogPage() {
               日曆 ›
             </a>
           </h2>
-          <ul class="session-list">
-            {sessions.slice(0, historyLimit).map((s) => {
-              const { names, parts } = describe(s.exercises.map((e) => e.exerciseId));
-              const sets = s.exercises.reduce((n, e) => n + e.sets.length, 0);
-              return (
-                <li key={s.id}>
-                  <a href={`#/log/view/${s.id}`} class="session-row">
-                    <span class="session-date">{formatDateLabel(s.date)}</span>
-                    <span class="session-meta">
-                      {s.durationSec !== undefined && <>{formatSessionDuration(s.durationSec)}・</>}
-                      <span class="num">{volumeText(sessionVolume(s, repo.isAssisted))}</span> {unitLabel(unit)}
-                    </span>
-                    <span class="session-names">
-                      {sets} 組：{names.join('、')}
-                    </span>
-                    <span class="session-parts" aria-hidden="true">
-                      {parts.map((p) => (
-                        <span key={p} class={`part-dot part-${p}`} />
-                      ))}
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-          {sessions.length > historyLimit && (
-            <button type="button" class="btn btn-ghost btn-block" onClick={() => setHistoryLimit((n) => n + HISTORY_PAGE)}>
-              顯示更多（還有 {sessions.length - historyLimit} 次）
-            </button>
-          )}
+          <input
+            type="search"
+            class="input"
+            placeholder="搜尋動作、備註或日期，例如：深蹲 低槓"
+            aria-label="搜尋歷史紀錄"
+            value={query}
+            onInput={(e) => {
+              setQuery(e.currentTarget.value);
+              setHistoryLimit(HISTORY_PAGE);
+            }}
+          />
+          {(() => {
+            const searching = query.trim() !== '';
+            const hits = searching
+              ? searchSessions(sessions, query, (id) => repo.getExercise(id)?.name)
+              : sessions.map((session) => ({ session, notes: [] as string[] }));
+            return (
+              <>
+                {searching && (
+                  <p class="muted small-text" role="status">
+                    {hits.length > 0 ? `找到 ${hits.length} 次` : `找不到「${query.trim()}」`}
+                  </p>
+                )}
+                <ul class="session-list">
+                  {hits.slice(0, historyLimit).map(({ session, notes }) => (
+                    <li key={session.id}>{sessionRow(session, notes)}</li>
+                  ))}
+                </ul>
+                {hits.length > historyLimit && (
+                  <button type="button" class="btn btn-ghost btn-block" onClick={() => setHistoryLimit((n) => n + HISTORY_PAGE)}>
+                    顯示更多（還有 {hits.length - historyLimit} 次）
+                  </button>
+                )}
+              </>
+            );
+          })()}
         </section>
       )}
     </>
