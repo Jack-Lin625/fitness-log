@@ -3665,3 +3665,185 @@ body:has(.rest-bar) .page-editor {
 .note-warn .review-tips {
   color: inherit;
 }
+
+/* ═════════════════ 姿勢檢查 ═════════════════ */
+
+.segmented-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.segmented-5 .segment {
+  font-size: 15px;
+}
+
+.form-tips {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.form-tips h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.form-tips ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.form-progress-text {
+  font-weight: 600;
+}
+
+.form-progress {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.form-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.form-video {
+  position: relative;
+  background: #000;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.form-video video,
+.form-video canvas {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.form-video canvas {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  pointer-events: none;
+}
+
+.form-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-summary h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.form-ok {
+  color: var(--part-shoulders);
+  font-weight: 700;
+}
+
+.form-issue {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.form-issue.is-warn {
+  background: var(--warn-bg);
+  border-color: transparent;
+  color: var(--warn-ink);
+}
+
+.form-issue-reps {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
+.form-issue p {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.form-reps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.form-rep {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 4px 14px 10px;
+}
+
+.form-rep.is-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.form-rep-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+
+.form-rep-head .small-text {
+  margin-left: auto;
+}
+
+.form-rep-flag {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.form-rep-flag.is-warn {
+  color: var(--warn-ink);
+}
+
+.form-rep-issues {
+  margin: 0 0 6px;
+  padding-left: 20px;
+  font-size: 15px;
+}
+
+.form-rep-issues .is-warn {
+  color: var(--warn-ink);
+}
+
+.form-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.form-metrics dt {
+  color: var(--muted);
+}
+
+.form-metrics dd {
+  margin: 0;
+}

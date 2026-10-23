@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** @mediapipe/tasks-vision 的版本（wasm 放在 mediapipe/<版本>/，換版本時網址跟著變） */
+declare const __MEDIAPIPE_VERSION__: string;
