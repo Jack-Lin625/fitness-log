@@ -4,7 +4,7 @@
  * 角度慣例見 kinematics.ts：0° 朝上、90° 朝前（畫面右邊）、180° 朝下。
  */
 import { add, dir, headOn, lerp, reach, scale, toward, twoLink } from './kinematics';
-import { BODY, easeInOut, type FarLimbs, type FrontLimbs, type FrontPose, type Pose, type Prop, type Vec } from './types';
+import { BODY, easeInOut, type FarLimbs, type FrontLimbs, type FrontPose, type LimbDepth, type Pose, type Prop, type Vec } from './types';
 
 export const ANKLE: Vec = { x: 96, y: 192 };
 export const FLOOR = 198;
@@ -133,6 +133,8 @@ export interface FrontSideSpec {
   foreFs?: number;
   thighFs?: number;
   shinFs?: number;
+  /** 縮短的那段是往後（遠離觀看者）而不是往前；俯視時代表往下 */
+  back?: ('upper' | 'fore' | 'thigh' | 'shin')[];
 }
 
 export interface FrontSpec {
@@ -141,6 +143,8 @@ export interface FrontSpec {
   spine?: number;
   /** 軀幹的前後縮短（彎腰時從正面看軀幹變短） */
   torsoFs?: number;
+  /** 軀幹往後仰（縮短的方向朝後） */
+  torsoBack?: boolean;
   /** 骨盆左右傾斜 */
   pelvisTilt?: number;
   /** 假人左側（畫面右邊）、右側（畫面左邊） */
@@ -152,13 +156,31 @@ export interface FrontSpec {
 /** 正面站姿時骨盆的高度：腳尖剛好在地面 */
 export const FRONT_PELVIS: Vec = { x: 100, y: FLOOR - 5 - LEG };
 
-function frontLimbs(shoulder: Vec, hip: Vec, s: FrontSideSpec, outward: number): FrontLimbs {
+/** 一段長 len、從正面看縮短成 fs 倍的肢體，往前（或往後）伸出的距離 */
+const depthOf = (len: number, fs: number | undefined, back: boolean) => (back ? -1 : 1) * len * Math.sqrt(Math.max(0, 1 - (fs ?? 1) ** 2));
+
+function frontLimbs(shoulder: Vec, hip: Vec, s: FrontSideSpec, outward: number, chest: number): { limbs: FrontLimbs; depth: LimbDepth } {
   const elbow = toward(shoulder, s.upper, BODY.upperArm * (s.upperFs ?? 1));
   const hand = toward(elbow, s.fore, BODY.forearm * (s.foreFs ?? 1));
   // 預設雙腳微微張開（往外 3 度）
   const knee = toward(hip, s.thigh ?? 180 - outward * 3, BODY.thigh * (s.thighFs ?? 1));
   const ankle = toward(knee, s.shin ?? 180 - outward * 3, BODY.shin * (s.shinFs ?? 1));
-  return { shoulder, elbow, hand, hip, knee, ankle, toe: { x: ankle.x + outward * 6, y: ankle.y + 5 } };
+  const back = (part: 'upper' | 'fore' | 'thigh' | 'shin') => s.back?.includes(part) ?? false;
+  const elbowZ = chest + depthOf(BODY.upperArm, s.upperFs, back('upper'));
+  const kneeZ = depthOf(BODY.thigh, s.thighFs, back('thigh'));
+  const ankleZ = kneeZ + depthOf(BODY.shin, s.shinFs, back('shin'));
+  return {
+    limbs: { shoulder, elbow, hand, hip, knee, ankle, toe: { x: ankle.x + outward * 6, y: ankle.y + 5 } },
+    depth: {
+      shoulder: chest,
+      elbow: elbowZ,
+      hand: elbowZ + depthOf(BODY.forearm, s.foreFs, back('fore')),
+      hip: 0,
+      knee: kneeZ,
+      ankle: ankleZ,
+      toe: ankleZ + 8,
+    },
+  };
 }
 
 export function front(spec: FrontSpec): FrontPose {
@@ -166,12 +188,18 @@ export function front(spec: FrontSpec): FrontPose {
   const tilt = spec.pelvisTilt ?? 0;
   const center = toward(spec.pelvis, spine, BODY.torso * (spec.torsoFs ?? 1));
   const neck = toward(center, spine, BODY.neck);
+  // 彎腰（或後仰）時肩膀往前（後）的距離；頭順著軀幹再往前
+  const chest = depthOf(BODY.torso, spec.torsoFs, spec.torsoBack ?? false);
+  const along = (len: number) => chest * (1 + len / BODY.torso);
+  const l = frontLimbs(toward(center, spine + 90, BODY.shoulderHalf), toward(spec.pelvis, tilt + 90, BODY.hipHalf), spec.l, 1, chest);
+  const r = frontLimbs(toward(center, spine - 90, BODY.shoulderHalf), toward(spec.pelvis, tilt - 90, BODY.hipHalf), spec.r, -1, chest);
   const pose: FrontPose = {
     pelvis: spec.pelvis,
     neck,
     head: toward(neck, spine, BODY.headR),
-    l: frontLimbs(toward(center, spine + 90, BODY.shoulderHalf), toward(spec.pelvis, tilt + 90, BODY.hipHalf), spec.l, 1),
-    r: frontLimbs(toward(center, spine - 90, BODY.shoulderHalf), toward(spec.pelvis, tilt - 90, BODY.hipHalf), spec.r, -1),
+    l: l.limbs,
+    r: r.limbs,
+    depth: { neck: along(BODY.neck), head: along(BODY.neck + BODY.headR), l: l.depth, r: r.depth },
   };
   if (spec.props) pose.props = spec.props;
   return pose;

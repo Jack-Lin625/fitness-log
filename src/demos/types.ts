@@ -77,6 +77,9 @@ export interface FrontLimbs {
   toe: Vec;
 }
 
+/** 正面一側各關節往前（朝觀看者）的距離，3D 示範用 */
+export type LimbDepth = Record<keyof FrontLimbs, number>;
+
 /** 正面某一瞬間的姿勢；l 是假人的左側（畫面右邊），r 是右側（畫面左邊） */
 export interface FrontPose {
   head: Vec;
@@ -86,6 +89,11 @@ export interface FrontPose {
   l: FrontLimbs;
   r: FrontLimbs;
   props?: Prop[];
+  /**
+   * 各關節往前（朝觀看者）的距離：由前後縮短比例還原（front() 會算好），3D 示範用。
+   * 沒有給時視為全部在同一個平面上。
+   */
+  depth?: { head: number; neck: number; l: LimbDepth; r: LimbDepth };
 }
 
 interface DemoBase {
@@ -109,6 +117,12 @@ interface DemoBase {
   grounded?: boolean;
   /** 測試時允許長度改變的部位（例如聳肩時肩膀沿軀幹上提） */
   flex?: ('torso' | 'farLeg' | 'farArm')[];
+  /**
+   * 3D 示範：側面示範看不到左右的寬度，用這裡指定（離身體中線的距離）。
+   * 沒有給時依器材推測：槓鈴握距較寬、啞鈴在肩膀外側、單一握把在中間。
+   * parallelBars：橫桿（bar）是雙槓，前後方向、左右各一根。逐個動作的設定在 widths.ts。
+   */
+  width?: { grip?: number; stance?: number; parallelBars?: boolean };
 }
 
 /** 側面示範 */
@@ -121,6 +135,8 @@ export interface SideDemo extends DemoBase {
 /** 正面示範 */
 export interface FrontDemo extends DemoBase {
   kind: 'front';
+  /** 俯視（躺著的動作從上往下看）：畫面的 y 是身體的左右，前後縮短代表高度 */
+  top?: boolean;
   pose: (p: number) => FrontPose;
 }
 

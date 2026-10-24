@@ -3057,6 +3057,78 @@ body:has(.rest-bar) .page-editor {
   stroke-linecap: round;
 }
 
+/* ───────── 3D 假人示範 ───────── */
+.mq-3d {
+  /* 在畫面上拖曳是轉動視角，不是捲動頁面 */
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mq-3d:active {
+  cursor: grabbing;
+}
+
+.mq-floor3 {
+  fill: color-mix(in srgb, var(--line) 35%, transparent);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.mq-torso3 {
+  fill: var(--muted);
+  stroke: var(--muted);
+  stroke-linejoin: round;
+}
+
+.mq-frame3 {
+  stroke: color-mix(in srgb, var(--line) 60%, var(--muted));
+  stroke-linecap: round;
+}
+
+.mq-shaft {
+  stroke: color-mix(in srgb, var(--ink) 70%, var(--accent));
+  stroke-linecap: round;
+}
+
+.mq-cable3 {
+  stroke: var(--accent);
+  stroke-dasharray: 3 2;
+}
+
+.mq-band3 {
+  stroke: var(--part-shoulders);
+  stroke-linecap: round;
+}
+
+.mq-db-plate {
+  fill: var(--accent);
+  stroke: color-mix(in srgb, var(--accent) 70%, var(--ink));
+  stroke-width: 0.8;
+}
+
+.mq-db-handle {
+  stroke-linecap: round;
+}
+
+.mq .mq-plate {
+  stroke-width: 2.5;
+}
+
+.mq-bench {
+  stroke-linejoin: round;
+}
+
+.mq-views {
+  margin-top: 6px;
+}
+
+.mq-hint {
+  margin: 2px 0 0;
+  text-align: center;
+}
+
 .sheet-loading {
   padding: 32px 16px;
   text-align: center;

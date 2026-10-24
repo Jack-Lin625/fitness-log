@@ -419,7 +419,8 @@ const backExtension: SideDemo = (() => {
         ankle,
         toeDeg: 130,
         hand: onFront(shoulder, torso, -2, 6),
-        elbowPrefer: (e) => e.x,
+        // 雙手交叉在胸前，手肘朝髖部那一側（上身垂下時手肘才不會穿過地板）
+        elbowPrefer: (e) => -Math.hypot(e.x - hip.x, e.y - hip.y),
       });
     },
     props: [
