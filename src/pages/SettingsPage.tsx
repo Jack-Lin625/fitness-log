@@ -1,6 +1,7 @@
 import { deleteWithUndo } from '../actions/undo';
 import { PageHeader } from '../components/PageHeader';
 import { CloudBackupSection } from '../components/CloudBackup';
+import { CoachSettings } from '../components/CoachSettings';
 import { ClearDataSection, DataManagement } from '../components/DataManagement';
 import { showToast } from '../components/Toast';
 import { useRepository } from '../hooks/useRepository';
@@ -160,6 +161,8 @@ export function SettingsPage() {
       </section>
 
       <CloudBackupSection />
+
+      <CoachSettings />
 
       <DataManagement />
 
