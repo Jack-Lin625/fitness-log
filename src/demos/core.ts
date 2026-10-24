@@ -319,7 +319,7 @@ const russianTwist: FrontDemo = {
     const spine = lerp(-10, 10, p);
     // 膝蓋往前上方抬（從正面看大腿變短、膝蓋比髖高一點）
     const legs: FrontSideSpec = { ...HANG, thigh: 30, thighFs: 0.45, shin: 172, shinFs: 0.5 };
-    const base = front({ pelvis, spine, torsoFs: 0.85, l: legs, r: mirror(legs) });
+    const base = front({ pelvis, spine, torsoFs: 0.85, torsoBack: true, l: legs, r: mirror(legs) });
     const target = { x: lerp(62, 138, p), y: 160 };
     const pose = handsTo(base, target);
     pose.props = [{ kind: 'plate', at: target, r: 9 }];

@@ -145,12 +145,13 @@ const TOP_PELVIS: Vec = { x: 128, y: 100 };
 function lyingFly(incline: boolean): FrontDemo {
   return {
     kind: 'front',
+    top: true,
     floor: false,
     grounded: false,
     pose: (p) => {
       // p = 0 手在胸口上方（從上面看幾乎看不到手臂長度），p = 1 手臂往兩側打開
       const fs = lerp(0.18, 0.95, p);
-      const l: FrontSideSpec = { upper: -8, fore: 0, upperFs: fs, foreFs: fs, thigh: 90, shin: 90, shinFs: 0.25 };
+      const l: FrontSideSpec = { upper: -8, fore: 0, upperFs: fs, foreFs: fs, thigh: 90, shin: 90, shinFs: 0.25, back: ['shin'] };
       const pose = front({
         pelvis: TOP_PELVIS,
         spine: -90,
