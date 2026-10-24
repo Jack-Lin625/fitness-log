@@ -4,9 +4,10 @@ import { GUIDES } from '../data/exerciseGuides';
 import { DEMOS } from '../demos';
 import type { Exercise } from '../types/models';
 import { EquipmentIcon } from './EquipmentIcon';
+import { ExerciseCoach } from './ExerciseCoach';
 import { Mannequin } from './Mannequin';
 
-/** 動作教學（全螢幕）：假人示範 + 準備、步驟、重點、常見錯誤、呼吸、安全 */
+/** 動作教學（全螢幕）：假人示範 + 準備、步驟、重點、常見錯誤、呼吸、安全，最下面可以問 AI 教練 */
 export function ExerciseGuideSheet({ exercise, onClose }: { exercise: Exercise; onClose: () => void }) {
   const guide = GUIDES[exercise.id];
   const demo = DEMOS[exercise.id];
@@ -107,6 +108,8 @@ export function ExerciseGuideSheet({ exercise, onClose }: { exercise: Exercise; 
         ) : (
           <p class="note">這個動作的教學內容還在製作中。</p>
         )}
+
+        <ExerciseCoach exercise={exercise} guide={guide} onClose={onClose} />
 
         <p class="note">
           動畫是簡化比例的示意圖，用來理解動作軌跡和身體角度。第一次做重量訓練，建議請教練或有經驗的人實際看過你的動作。
